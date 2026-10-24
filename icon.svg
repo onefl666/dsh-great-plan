@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="gpPlanBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2f81f7"/>
+      <stop offset="1" stop-color="#1b4fbf"/>
+    </linearGradient>
+    <linearGradient id="gpPlanSpark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffd66b"/>
+      <stop offset="1" stop-color="#ff9f43"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="56" height="56" rx="14" fill="url(#gpPlanBg)"/>
+  <rect x="18" y="14" width="28" height="36" rx="5" fill="#ffffff" opacity="0.96"/>
+  <rect x="24" y="11" width="16" height="8" rx="3" fill="#dbeafe"/>
+  <path d="M24 26h16M24 32h16M24 38h10" stroke="#1f6feb" stroke-width="3" stroke-linecap="round"/>
+  <path d="M46 33l2.4 5.1 5.6.6-4.2 3.7 1.2 5.5-5-2.9-5 2.9 1.2-5.5-4.2-3.7 5.6-.6L46 33z" fill="url(#gpPlanSpark)"/>
+</svg>
