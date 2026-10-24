@@ -245,7 +245,7 @@ Debt and quirks (record, don't fix unless asked):
 - Tests use fake React and never mount components; the `ExecutionDialog` render test calls the component function directly (no hooks or effects). 36/36 is not behavioral coverage.
 - Client HMR keys off the `client.js` artifact only (mtime/ctime/size); chunk-only edits can serve a stale revision. Touch `client.js` or restart before judging browser output.
 - `@deepseek-ai/dsh-compaction` is imported dynamically and resolved from the DSH installation with no declared dependency; a composition without it degrades to a command error plus fallback execution.
-- This workspace is not a git repository (2026-10-19): no history or rollback. Be extra careful with destructive edits and don't rely on `git diff` for review.
+- This workspace became a git repository on 2026-10-24 (`origin` = `https://github.com/onefl666/dsh-great-plan`, branch `main`); history before that has no rollback. Don't commit or push unless asked.
 - The dialog renders through a React portal to `document.body` (existing pattern). Don't hand-write DOM outside components or add a second application root.
 - `0.1.0`, private local package; no lockfile and no `node_modules` in this repo.
 
