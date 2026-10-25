@@ -47,7 +47,7 @@ test('every Client chunk follows the package-local chunk naming rule', () => {
   for (const chunk of chunks) {
     assert.match(chunk, /^client\.[A-Za-z0-9][A-Za-z0-9._-]*\.js$/);
   }
-  for (const required of ['client.ui.js', 'client.model.js', 'client.preset.js', 'client.actions.js', 'client.panel.js']) {
+  for (const required of ['client.ui.js', 'client.settings.js', 'client.model.js', 'client.preset.js', 'client.actions.js', 'client.panel.js']) {
     assert.ok(chunks.includes(required), `missing ${required}`);
   }
 });
@@ -58,7 +58,10 @@ test('required delivery files exist', () => {
     'host/plan-range.js',
     'host/plan-compaction.js',
     'host/plan-evidence.js',
+    'host/apply.js',
+    'host/config.js',
     'client.js',
+    'client.settings.js',
     'cordis.patch.yml',
     'locale/en.json',
     'locale/zh.json',
@@ -78,4 +81,32 @@ test('Client sources do not import Harness Client packages', () => {
     assert.equal(source.includes("require('@deepseek-ai/"), false, `${file} requires a Harness package`);
     assert.equal(source.includes('require("@deepseek-ai/'), false, `${file} requires a Harness package`);
   }
+});
+
+test('the linked package declares the Harness packages its Host code imports as peers', () => {
+  // A linked local plugin resolves bare Harness imports to the running
+  // installation only when its own manifest lists them as peer dependencies;
+  // otherwise Node falls back to the workspace and activation fails with
+  // ERR_MODULE_NOT_FOUND.
+  const peers = packageJson.peerDependencies ?? {};
+  for (const name of ['@deepseek-ai/schemastery', '@deepseek-ai/dsh-compaction']) {
+    assert.equal(typeof peers[name], 'string', `missing peer dependency ${name}`);
+    assert.ok(peers[name].trim().length > 0, `empty peer range for ${name}`);
+    assert.equal(packageJson.dependencies?.[name], undefined, `${name} must be a peer, not an installed dependency`);
+  }
+});
+
+test('the Host entry exports Config plus apply and the Client orders the settings packages', () => {
+  const entry = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+  assert.match(entry, /export \{ Config \} from '\.\/host\/config\.js'/);
+  assert.match(entry, /export \{ apply \} from '\.\/host\/apply\.js'/);
+
+  const config = readFileSync(new URL('../host/config.js', import.meta.url), 'utf8');
+  assert.match(config, /injectBrainstormingPrompt/);
+  assert.match(config, /injectUnlimitedBudgetPrompt/);
+  assert.equal((config.match(/default\(true\)/g) ?? []).length, 2, 'both switches default to on');
+  assert.equal((config.match(/volatile\(\)/g) ?? []).length, 2, 'both switches are volatile');
+
+  assert.ok(packageJson.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-settings'));
+  assert.ok(packageJson.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-settings-general'));
 });

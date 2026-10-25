@@ -40,12 +40,27 @@ test('composeFreshTitle stays within the title budget', () => {
   assert.ok(title.endsWith('…'));
 });
 
-test('buildPlanExecutionPrompt includes the complete plan and localized intro', () => {
+test('buildPlanExecutionPrompt includes the intro, budget reminder, and complete plan', () => {
   const prompt = actions.buildPlanExecutionPrompt('# Plan\n\nDo the work.', (key) => (
     key === 'clear.promptIntro' ? 'INTRO' : key
   ));
-  assert.match(prompt, /^INTRO/);
+  assert.match(prompt, /^INTRO\n\nToken budget: unlimited\./);
+  assert.match(prompt, /Do not skimp on tokens/);
   assert.match(prompt, /<approved-plan>\n# Plan\n\nDo the work\.\n<\/approved-plan>$/);
+});
+
+test('buildPlanExecutionPrompt omits the budget reminder when the switch is off', () => {
+  const prompt = actions.buildPlanExecutionPrompt('# Plan\n\nDo the work.', (key) => (
+    key === 'clear.promptIntro' ? 'INTRO' : key
+  ), false);
+  assert.equal(prompt.includes('Token budget: unlimited'), false);
+  assert.match(prompt, /^INTRO\n\n<approved-plan>/);
+});
+
+test('the fresh-session budget reminder has the same intent as the plan-mode one', () => {
+  assert.match(actions.UNLIMITED_BUDGET_REMINDER, /Token budget: unlimited/);
+  assert.match(actions.UNLIMITED_BUDGET_REMINDER, /tool calls/);
+  assert.match(actions.UNLIMITED_BUDGET_REMINDER, /keep the final summary concise/);
 });
 
 test('buildPlanExecutionPrompt rejects an empty plan', () => {

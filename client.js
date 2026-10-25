@@ -61,6 +61,16 @@ window.__ModuleLoader__.load({
       'error.approveFailed': '执行计划失败：{message}',
       'error.selectModelFailed': '应用模型选择失败：{message}',
       'error.freshFailed': '新会话执行失败：{message}',
+      'settings.nav': '卓越计划',
+      'settings.heading': '计划提示词',
+      'settings.brainstorm.title': '注入头脑风暴提示词',
+      'settings.brainstorm.description': 'plan 模式下，当需求存在会改变方案的歧义时，先逐轮提出一个简短问题，再给出建议与权衡。关闭后仍保留证据链与执行交接提示。',
+      'settings.budget.title': '注入 token 预算无上限提示词',
+      'settings.budget.description': 'plan 模式与新会话执行时，提示模型 token 预算无上限，不要为节省用量而减少调研、工具调用或必要提问；最终计划与总结仍保持简洁。',
+      'settings.loading': '正在读取设置…',
+      'settings.unavailable': '当前部署未提供该设置项。',
+      'settings.readOnly': '当前配置不可写入。',
+      'settings.saveFailed': '保存失败，请重试。',
     };
 
     const en = {
@@ -121,6 +131,16 @@ window.__ModuleLoader__.load({
       'error.approveFailed': 'Executing the plan failed: {message}',
       'error.selectModelFailed': 'Applying the model selection failed: {message}',
       'error.freshFailed': 'The fresh-session execution failed: {message}',
+      'settings.nav': 'Great Plan',
+      'settings.heading': 'Plan prompt',
+      'settings.brainstorm.title': 'Inject brainstorming prompt',
+      'settings.brainstorm.description': 'In plan mode, ask one short question at a time when ambiguity could change the approach, then summarize recommendations and tradeoffs. Turning this off keeps the evidence chain and execution handoff guidance.',
+      'settings.budget.title': 'Inject unlimited token budget prompt',
+      'settings.budget.description': 'In plan mode and fresh-session execution, tell the model its token budget is unlimited and not to cut investigation, tool calls, or necessary questions to save tokens. Plans and summaries stay concise.',
+      'settings.loading': 'Loading settings…',
+      'settings.unavailable': 'This preference is unavailable in the current deployment.',
+      'settings.readOnly': 'This preference is read-only in the current configuration.',
+      'settings.saveFailed': 'Could not save. Please try again.',
     };
 
     return {
@@ -137,6 +157,7 @@ window.__ModuleLoader__.load({
       ],
       async apply(ctx) {
         const ui = await require.async('./client.ui.js');
+        const settings = await require.async('./client.settings.js');
         await require.async('./client.model.js');
         const preset = await require.async('./client.preset.js');
         const actions = await require.async('./client.actions.js');
@@ -146,6 +167,12 @@ window.__ModuleLoader__.load({
         ctx.effect(() => ui.installStyles(), 'great-plan: styles');
 
         const presetStore = preset.createPresetStore(ctx);
+        const t = ctx.locale.bind(NS);
+
+        // The shared configuration forms back both the Settings page and the
+        // fresh-session budget reminder; without them both default to enabled.
+        const configForms = ctx.get('configForms');
+        const readUnlimitedBudget = () => settings.readBudgetSwitch(configForms);
 
         ctx.slots.inject('conversation.plan-review.actions', () => ctx.slots.register({
           name: 'conversation.plan-review.actions',
@@ -154,11 +181,22 @@ window.__ModuleLoader__.load({
           locale: NS,
           inject: (sessionId) => ({
             directory: ctx.modelDirectories.directoryFor(sessionId),
-            actions: actions.createActions(ctx, sessionId),
+            actions: actions.createActions(ctx, sessionId, readUnlimitedBudget),
             presetStore,
             modelAvailable: ctx.sessions.subagentAddress(sessionId) === undefined,
           }),
         }, panel.ExecutionTrigger));
+
+        if (configForms !== undefined) {
+          ctx.slots.inject('settings.section', () => ctx.slots.register({
+            name: 'settings.section',
+            id: 'great-plan',
+            order: 25,
+            label: () => t('settings.nav'),
+            locale: NS,
+            inject: () => ({ form: configForms.get('great-plan') }),
+          }, settings.GreatPlanSection));
+        }
       },
     };
   },

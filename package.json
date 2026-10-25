@@ -1,6 +1,6 @@
 {
   "name": "@local/dsh-great-plan",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "license": "MIT",
   "homepage": "https://github.com/onefl666/dsh-great-plan#readme",
@@ -31,6 +31,10 @@
     "README.zh-CN.md",
     "LICENSE"
   ],
+  "peerDependencies": {
+    "@deepseek-ai/dsh-compaction": "^0.2.1-rc.3",
+    "@deepseek-ai/schemastery": "~3.18.5"
+  },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
@@ -43,6 +47,8 @@
         "@deepseek-ai/dsh-client-ui-user-questions",
         "@deepseek-ai/dsh-client-ui-model-selection",
         "@deepseek-ai/dsh-client-ui-workspace",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-settings-general",
         "@deepseek-ai/dsh-client-locale"
       ]
     }

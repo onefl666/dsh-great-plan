@@ -6,6 +6,18 @@ window.__ModuleLoader__.load({
       return error instanceof Error ? error.message : String(error);
     }
 
+    /** Model-facing reminder appended to fresh-session execution when the budget switch is on. */
+    const UNLIMITED_BUDGET_REMINDER = 'Token budget: unlimited. Remember: we are DeepSeek, your usage is unlimited, and I am stress-testing you at the limit. Do not skimp on tokens — spend freely; you are very wealthy. Do not reduce investigation, tool calls, or necessary questions to save tokens; keep the final summary concise.';
+
+    /** Read the budget switch defensively; configuration must never block execution. */
+    function readBudgetFlag(read) {
+      try {
+        return typeof read === 'function' ? read() !== false : true;
+      } catch {
+        return true;
+      }
+    }
+
     async function approveReview({ pending, review }) {
       if (pending === null || pending === undefined || typeof pending.answer !== 'function') {
         throw new Error('The plan review is no longer available.');
@@ -48,13 +60,14 @@ window.__ModuleLoader__.load({
       return `${value.slice(0, max - 1).trimEnd()}…`;
     }
 
-    function buildPlanExecutionPrompt(plan, t) {
+    function buildPlanExecutionPrompt(plan, t, unlimitedBudget = true) {
       const body = typeof plan === 'string' ? plan.trim() : '';
       if (body === '') throw new Error('The reviewed plan is empty.');
       const intro = typeof t === 'function'
         ? t('clear.promptIntro')
         : 'The user approved the following plan. Execute it now without re-planning.';
-      return `${intro}\n\n<approved-plan>\n${body}\n</approved-plan>`;
+      const budget = unlimitedBudget === false ? '' : `${UNLIMITED_BUDGET_REMINDER}\n\n`;
+      return `${intro}\n\n${budget}<approved-plan>\n${body}\n</approved-plan>`;
     }
 
     function selectionPayload(selection) {
@@ -66,7 +79,7 @@ window.__ModuleLoader__.load({
       };
     }
 
-    async function createFreshExecution({ ctx, sessionId, review, presetId, workspaceId, cwd, selection, title, titleSuffix, signal, t }) {
+    async function createFreshExecution({ ctx, sessionId, review, presetId, workspaceId, cwd, selection, title, titleSuffix, signal, t, readUnlimitedBudget }) {
       const location = workspaceId !== undefined ? { workspaceId } : cwd !== undefined ? { cwd } : {};
       let newSessionId;
       try {
@@ -94,8 +107,9 @@ window.__ModuleLoader__.load({
             const selected = await ctx.remote.session.selectModel({ sessionId: newSessionId, ...payload });
             if (!selected.ok) throw new Error(`Applying the model selection failed: ${selected.error.message} (${selected.error.code})`);
           }
+          const unlimitedBudget = readBudgetFlag(readUnlimitedBudget);
           const prompt = await session.prompt(
-            [{ type: 'text', text: buildPlanExecutionPrompt(review.plan, t) }],
+            [{ type: 'text', text: buildPlanExecutionPrompt(review.plan, t, unlimitedBudget) }],
             'queue',
             signal,
           );
@@ -129,17 +143,18 @@ window.__ModuleLoader__.load({
       return { sessionId: newSessionId, cancelError };
     }
 
-    function createActions(ctx, sessionId) {
+    function createActions(ctx, sessionId, readUnlimitedBudget) {
       return {
         approveReview,
         composeFreshTitle,
         runCompactCommand: (args) => runCompactCommand({ ctx, sessionId, ...args }),
-        createFreshExecution: (args) => createFreshExecution({ ctx, sessionId, ...args }),
+        createFreshExecution: (args) => createFreshExecution({ ctx, sessionId, ...args, readUnlimitedBudget }),
       };
     }
 
     return {
       messageOf,
+      UNLIMITED_BUDGET_REMINDER,
       approveReview,
       runCompactCommand,
       createFreshExecution,

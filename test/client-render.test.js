@@ -42,6 +42,7 @@ function materialize(fileName) {
     if (spec === 'react') return fakeReact;
     if (spec === 'react-dom') return fakeReactDom;
     if (spec === '@local/dsh-great-plan/client.ui.js') return modules['client.ui.js'];
+    if (spec === '@local/dsh-great-plan/client.settings.js') return modules['client.settings.js'];
     if (spec === '@local/dsh-great-plan/client.model.js') return modules['client.model.js'];
     if (spec === '@local/dsh-great-plan/client.preset.js') return modules['client.preset.js'];
     throw new Error(`unexpected require: ${spec}`);
@@ -51,11 +52,13 @@ function materialize(fileName) {
 
 const modules = {};
 await import('../client.ui.js');
+await import('../client.settings.js');
 await import('../client.model.js');
 await import('../client.preset.js');
 await import('../client.actions.js');
 await import('../client.panel.js');
 materialize('client.ui.js');
+materialize('client.settings.js');
 materialize('client.model.js');
 materialize('client.preset.js');
 materialize('client.actions.js');
@@ -161,4 +164,70 @@ test('ExecutionDialog renders the root options without throwing', () => {
   assert.equal(rendered.type, fakeReact.Fragment);
   assert.equal(rendered.children.length, 2);
   assert.equal(rendered.children[1].props.role, 'dialog');
+});
+
+function findElements(node, predicate, found = []) {
+  if (node === null || node === undefined || typeof node !== 'object') return found;
+  if (Array.isArray(node)) {
+    for (const child of node) findElements(child, predicate, found);
+    return found;
+  }
+  if (predicate(node)) found.push(node);
+  const children = node.children === undefined ? [] : Array.isArray(node.children) ? node.children : [node.children];
+  for (const child of children) findElements(child, predicate, found);
+  return found;
+}
+
+test('GreatPlanSection renders both accessible switches and reflects the config', () => {
+  const snapshot = {
+    status: 'ready',
+    value: { injectBrainstormingPrompt: true, injectUnlimitedBudgetPrompt: true },
+    writable: true,
+  };
+  const form = {
+    getSnapshot: () => snapshot,
+    subscribe: () => () => {},
+    set: async () => true,
+  };
+  const node = modules['client.settings.js'].GreatPlanSection({ form, t: (key) => key });
+  const toggles = findElements(node, (child) => child.props?.role === 'switch');
+  assert.equal(toggles.length, 2, 'both switches must render');
+  for (const toggle of toggles) {
+    assert.equal(toggle.type, 'button');
+    assert.equal(toggle.props['aria-checked'], true);
+    assert.equal(toggle.props.disabled, false);
+  }
+  assert.deepEqual(toggles.map((toggle) => toggle.props['aria-label']), [
+    'settings.brainstorm.title',
+    'settings.budget.title',
+  ]);
+
+  const readers = modules['client.settings.js'];
+  assert.equal(readers.readBrainstormingValue({ status: 'ready', value: { injectBrainstormingPrompt: false } }), false);
+  assert.equal(readers.readBrainstormingValue({ status: 'ready', value: {} }), true);
+  assert.equal(readers.readBudgetValue({ status: 'ready', value: { injectUnlimitedBudgetPrompt: false } }), false);
+  assert.equal(readers.readBudgetValue({ status: 'ready', value: {} }), true);
+});
+
+test('readBudgetSwitch reads the shared configuration mirror with a safe default', () => {
+  const readBudgetSwitch = modules['client.settings.js'].readBudgetSwitch;
+  const formOf = (snapshot) => ({ get: () => ({ getSnapshot: () => snapshot }) });
+
+  assert.equal(readBudgetSwitch(undefined), true);
+  assert.equal(readBudgetSwitch(formOf({ status: 'ready', value: { injectUnlimitedBudgetPrompt: true } })), true);
+  assert.equal(readBudgetSwitch(formOf({ status: 'ready', value: { injectUnlimitedBudgetPrompt: false } })), false);
+  assert.equal(readBudgetSwitch(formOf({ status: 'ready', value: {} })), true);
+  assert.equal(readBudgetSwitch(formOf({ status: 'loading', value: undefined })), true);
+  assert.equal(readBudgetSwitch({ get: () => { throw new Error('no form'); } }), true);
+  assert.equal(readBudgetSwitch({ get: () => ({ getSnapshot: () => { throw new Error('no snapshot'); } }) }), true);
+});
+
+test('GreatPlanSection hides the switches while the form is loading', () => {
+  const form = {
+    getSnapshot: () => ({ status: 'loading', value: undefined, writable: false }),
+    subscribe: () => () => {},
+    set: async () => true,
+  };
+  const node = modules['client.settings.js'].GreatPlanSection({ form, t: (key) => key });
+  assert.equal(findElements(node, (child) => child.props?.role === 'switch').length, 0);
 });
