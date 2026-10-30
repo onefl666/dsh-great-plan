@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createCompactCommand } from '../host/plan-compaction.js';
+import {
+  createCompactCommand,
+  EXIT_PLAN_MODE_TOOL,
+  FAILURES,
+  MESSAGES,
+  USAGE,
+} from '../host/plan-compaction.js';
 import { selectPlanCompactionRange } from '../host/plan-range.js';
 
 function sessionWith(events) {
@@ -132,4 +138,170 @@ test('compact command rejects arguments', async () => {
   const result = await createCompactCommand(deps).handler({ ...invocation(standardEvents), rawInput: 'now' });
   assert.equal(result.kind, 'error');
   assert.match(result.text, /Usage/);
+  assert.deepEqual(result, { kind: 'error', text: USAGE });
+});
+
+test('exports the frozen plan-review tool and user-visible static messages', () => {
+  assert.equal(EXIT_PLAN_MODE_TOOL, 'exit_plan_mode');
+  assert.equal(USAGE, 'Usage: /great-plan-compact (no arguments)');
+  assert.deepEqual(FAILURES, {
+    busy: 'Compaction is unavailable because another compaction is running.',
+    changed: 'The history selected for compaction changed during the attempt.',
+    summary: 'Compaction could not produce a useful summary.',
+    commit: 'Compaction did not finish cleanly.',
+    persistence: 'Compaction finished, but the session could not be saved.',
+    cancelled: 'Compaction was cancelled.',
+  });
+  assert.deepEqual(MESSAGES, {
+    planStateUnavailable: 'Plan state is unavailable in this composition.',
+    planInactive: 'Plan mode is not active; nothing to compact.',
+    backendUnavailable: 'Compaction is unavailable because no compaction backend is composed.',
+    noReview: 'There is no pending plan review to compact.',
+    empty: 'No compactable history exists before the pending plan.',
+  });
+});
+
+function sessionWithLastContent(content) {
+  return sessionWith(new Map([
+    [10, { type: 'system/message' }],
+    [20, { type: 'user/message' }],
+    [30, { type: 'tool/result' }],
+    [40, { type: 'assistant/message', data: { message: { content } } }],
+  ]));
+}
+
+const balancedAt30 = (_session, seq) => seq === 30;
+
+test('only an exit_plan_mode tool call on the last node counts as the pending plan review', () => {
+  const found = selectPlanCompactionRange(sessionWithLastContent([
+    { type: 'text', text: 'Here is the plan.' },
+    { type: 'tool-call', name: 'exit_plan_mode' },
+  ]), balancedAt30);
+  assert.deepEqual(found, { start: 20, end: 30 });
+
+  for (const content of [
+    [{ type: 'text', text: 'just text' }],
+    [{ type: 'tool-call', name: 'read_file' }],
+    [{ type: 'tool-call' }],
+    [],
+  ]) {
+    assert.deepEqual(
+      selectPlanCompactionRange(sessionWithLastContent(content), balancedAt30),
+      { error: 'no-review' },
+    );
+  }
+});
+
+test('the plan-review tool name is overridable and defaults to exit_plan_mode', () => {
+  const session = sessionWithLastContent([{ type: 'tool-call', name: 'ask_question' }]);
+  assert.deepEqual(selectPlanCompactionRange(session, balancedAt30), { error: 'no-review' });
+  assert.deepEqual(
+    selectPlanCompactionRange(session, balancedAt30, { planReviewTool: 'ask_question' }),
+    { start: 20, end: 30 },
+  );
+
+  const exitSession = sessionWithLastContent([{ type: 'tool-call', name: 'exit_plan_mode' }]);
+  assert.deepEqual(
+    selectPlanCompactionRange(exitSession, balancedAt30, { planReviewTool: 'ask_question' }),
+    { error: 'no-review' },
+  );
+  assert.deepEqual(
+    selectPlanCompactionRange(exitSession, balancedAt30, {}),
+    { start: 20, end: 30 },
+  );
+});
+
+test('compact command only accepts exit_plan_mode as the pending plan review', async () => {
+  const { deps } = commandDeps();
+  const nonReviewEvents = new Map([
+    [10, { type: 'system/message' }],
+    [20, { type: 'user/message' }],
+    [30, { type: 'tool/result' }],
+    [40, { type: 'assistant/message', data: { message: { content: [{ type: 'tool-call', name: 'read_file' }] } } }],
+  ]);
+  const result = await createCompactCommand(deps).handler(invocation(nonReviewEvents));
+  assert.deepEqual(result, { kind: 'error', text: MESSAGES.noReview });
+});
+
+test('non-string rawInput is treated as no arguments', async () => {
+  for (const rawInput of [undefined, null, 17, true, {}, [], () => 'x']) {
+    const { deps } = commandDeps();
+    const result = await createCompactCommand(deps).handler({ ...invocation(standardEvents), rawInput });
+    assert.equal(result.kind, 'success', `rawInput ${String(rawInput)} must be ignored`);
+  }
+  const spaced = await createCompactCommand(commandDeps().deps).handler({
+    ...invocation(standardEvents),
+    rawInput: '   ',
+  });
+  assert.equal(spaced.kind, 'success');
+});
+
+test('static command failures use the exported message table', async () => {
+  const cases = [
+    [{ getProjections: () => undefined }, MESSAGES.planStateUnavailable],
+    [{ getProjections: () => ({ stateOf: () => ({ active: false }) }) }, MESSAGES.planInactive],
+    [{ getCompaction: () => undefined }, MESSAGES.backendUnavailable],
+    [{ getCompaction: () => ({}) }, MESSAGES.backendUnavailable],
+  ];
+  for (const [overrides, text] of cases) {
+    const { deps } = commandDeps(overrides);
+    const result = await createCompactCommand(deps).handler(invocation(standardEvents));
+    assert.deepEqual(result, { kind: 'error', text });
+  }
+
+  const noReview = new Map([[10, { type: 'user/message' }], [20, { type: 'user/message' }]]);
+  assert.deepEqual(
+    await createCompactCommand(commandDeps().deps).handler(invocation(noReview)),
+    { kind: 'error', text: MESSAGES.noReview },
+  );
+
+  const empty = new Map([
+    [10, { type: 'system/message' }],
+    [20, assistantWithToolCall()],
+  ]);
+  assert.deepEqual(
+    await createCompactCommand(commandDeps().deps).handler(invocation(empty)),
+    { kind: 'error', text: MESSAGES.empty },
+  );
+});
+
+test('a missing invocation degrades to a command error instead of throwing', async () => {
+  const { deps } = commandDeps();
+  const command = createCompactCommand(deps);
+  const result = await command.handler(undefined);
+  assert.equal(result.kind, 'error');
+  assert.equal(typeof result.text, 'string');
+});
+
+test('stable compaction failure codes map through the exported failure table', async () => {
+  for (const code of ['busy', 'changed', 'summary', 'commit', 'persistence', 'cancelled']) {
+    const { deps } = commandDeps({
+      getCompaction: () => ({
+        compactRegion: async () => {
+          const error = new Error(code);
+          error.code = code;
+          throw error;
+        },
+      }),
+    });
+    const result = await createCompactCommand(deps).handler(invocation(standardEvents));
+    assert.deepEqual(result, { kind: 'error', text: FAILURES[code] });
+  }
+});
+
+test('an aborted signal reports cancellation even when the backend error has no code', async () => {
+  const controller = new AbortController();
+  controller.abort();
+  const { deps } = commandDeps({
+    getCompaction: () => ({
+      compactRegion: async () => {
+        throw new Error('aborted');
+      },
+    }),
+  });
+  const result = await createCompactCommand(deps).handler({
+    ...invocation(standardEvents),
+    signal: controller.signal,
+  });
+  assert.deepEqual(result, { kind: 'error', text: FAILURES.cancelled });
 });

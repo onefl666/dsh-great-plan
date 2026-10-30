@@ -92,6 +92,24 @@ test('the full guidance is exactly the default composition of its parts', () => 
   assert.equal(PLAN_UNLIMITED_BUDGET_GUIDANCE.includes('Evidence chain'), false);
 });
 
+test('the fully enabled composition is the shared module constant', () => {
+  assert.equal(composePlanGuidance({ brainstorming: true, unlimitedBudget: true }), PLAN_EVIDENCE_GUIDANCE);
+  assert.equal(composePlanGuidance({ brainstorming: true }), PLAN_EVIDENCE_GUIDANCE);
+  assert.equal(composePlanGuidance({ unlimitedBudget: true }), PLAN_EVIDENCE_GUIDANCE);
+  assert.equal(composePlanGuidance({ brainstorming: true, unlimitedBudget: true }), PLAN_EVIDENCE_GUIDANCE);
+  assert.equal(planEvidenceText(planModeOf({ active: true }), AGENT, true, true), PLAN_EVIDENCE_GUIDANCE);
+  assert.equal(planEvidenceText(planModeOf({ active: true, pending: true }), AGENT, true, true), PLAN_EVIDENCE_GUIDANCE);
+  assert.equal(sectionText(() => planModeOf({ active: true })), PLAN_EVIDENCE_GUIDANCE);
+  assert.notEqual(composePlanGuidance({ brainstorming: false }), PLAN_EVIDENCE_GUIDANCE);
+  assert.notEqual(composePlanGuidance({ unlimitedBudget: false }), PLAN_EVIDENCE_GUIDANCE);
+});
+
+function sectionText(getPlanMode) {
+  const systemPrompt = createSystemPrompt();
+  registerPlanEvidenceSection({ systemPrompt, getPlanMode });
+  return systemPrompt.sections[0].text({ agent: AGENT });
+}
+
 test('composePlanGuidance omits each disabled part and always keeps the handoff', () => {
   assert.equal(
     composePlanGuidance({ brainstorming: false }),

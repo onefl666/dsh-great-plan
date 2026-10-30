@@ -76,6 +76,39 @@ window.__ModuleLoader__.load({
       return group.name ?? group.id;
     }
 
+    /** Case-insensitive substring match against the trimmed model-search query. */
+    function matchesQuery(value, needle) {
+      return typeof value === 'string' && value.toLowerCase().includes(needle);
+    }
+
+    /**
+     * Filter ordered model groups by a free-text query.
+     *
+     * A missing, blank, or whitespace-only query returns the input array itself
+     * (same reference) so the unfiltered catalog keeps working without a copy.
+     * Otherwise the query is trimmed and matched case-insensitively against the
+     * provider id/display name and the model id/name: a provider match keeps all
+     * of its models, a model match keeps only the matching models, and groups
+     * left without models are dropped. Ordering is preserved.
+     */
+    function filterModelGroups(groups, query) {
+      if (typeof query !== 'string' || query.trim() === '') return groups;
+      const needle = query.trim().toLowerCase();
+      const filtered = [];
+      for (const group of groups) {
+        const models = group.models ?? [];
+        if (matchesQuery(group.id, needle) || matchesQuery(group.name, needle)) {
+          if (models.length > 0) filtered.push(group);
+          continue;
+        }
+        const matching = models.filter((model) => (
+          matchesQuery(model?.id, needle) || matchesQuery(model?.name, needle)
+        ));
+        if (matching.length > 0) filtered.push({ ...group, models: matching });
+      }
+      return filtered;
+    }
+
     function ModelRows({ state, t, disabled, onOpenModel, onOpenEffort, onRetry }) {
       const reasoning = reasoningOf(state);
       const busy = disabled || state.status === 'selecting';
@@ -102,6 +135,7 @@ window.__ModuleLoader__.load({
     }
 
     function ModelListView({ state, t, disabled, onPick, onRetry }) {
+      const [query, setQuery] = React.useState('');
       const groups = orderedGroups(state.groups ?? []);
       const busy = disabled || state.status === 'selecting';
       if (groups.length === 0) {
@@ -116,18 +150,38 @@ window.__ModuleLoader__.load({
         }
         return h(ui.Note, null, t('panel.modelEmpty'));
       }
-      return h('div', { className: 'gp-list' },
+      const visible = filterModelGroups(groups, query);
+      return h('div', null,
+        h('input', {
+          type: 'search',
+          className: 'gp-search',
+          value: query,
+          placeholder: t('panel.searchModels'),
+          'aria-label': t('panel.searchModels'),
+          onChange: (event) => {
+            setQuery(event?.target?.value ?? '');
+          },
+        }),
         state.status === 'error' ? h(ui.ErrorText, null, t('panel.modelError', { message: state.error ?? '' })) : null,
-        groups.map((group) => h(React.Fragment, { key: group.id },
-          h(ui.GroupHeading, null, providerName(group, t)),
-          (group.models ?? []).map((model) => h(ui.ListRow, {
-            key: `${group.id}/${model.id}`,
-            title: model.name ?? model.id,
-            selected: state.current?.provider === group.id && state.current?.model === model.id,
-            disabled: busy,
-            onClick: () => onPick(group, model),
-          })),
-        )),
+        visible.length === 0
+          ? h(ui.Note, null, t('panel.noMatches'))
+          : h('div', { className: 'gp-list', role: 'radiogroup', 'aria-label': t('panel.model') },
+            visible.map((group) => h(React.Fragment, { key: group.id },
+              h(ui.GroupHeading, { role: 'presentation' }, providerName(group, t)),
+              (group.models ?? []).map((model) => {
+                const selected = state.current?.provider === group.id && state.current?.model === model.id;
+                return h(ui.ListRow, {
+                  key: `${group.id}/${model.id}`,
+                  title: model.name ?? model.id,
+                  role: 'radio',
+                  checked: selected,
+                  selected,
+                  disabled: busy,
+                  onClick: () => onPick(group, model),
+                });
+              }),
+            )),
+          ),
         state.status === 'error' ? h(ui.Button, { variant: 'ghost', onClick: onRetry }, t('panel.retry')) : null,
       );
     }
@@ -137,19 +191,25 @@ window.__ModuleLoader__.load({
       if (current === null || current === undefined) return h(ui.Note, null, t('panel.selectModelFirst'));
       const reasoning = reasoningOf(state);
       if (reasoning === undefined) return h(ui.Note, null, t('panel.noEffort'));
-      const options = [];
-      if (reasoning.defaultEffort === undefined) options.push({ key: 'provider-default', id: undefined, name: t('panel.providerDefault') });
-      for (const effort of reasoning.efforts ?? []) options.push({ key: `effort:${effort.id}`, id: effort.id, name: effort.name });
-      if (options.length === 0) return h(ui.Note, null, t('panel.noEffort'));
-      const effective = current.reasoningEffort ?? reasoning.defaultEffort;
-      return h('div', { className: 'gp-list' },
-        options.map((option) => h(ui.ListRow, {
-          key: option.key,
-          title: option.name,
-          selected: effective === option.id,
-          disabled: disabled || state.status === 'selecting',
-          onClick: () => onPick(option.id),
-        })),
+      const selectedEffort = current.reasoningEffort;
+      const options = [{ key: 'provider-default', id: undefined, name: t('panel.providerDefault') }];
+      for (const effort of reasoning.efforts ?? []) {
+        options.push({ key: `effort:${effort.id}`, id: effort.id, name: effort.name });
+      }
+      const busy = disabled || state.status === 'selecting';
+      return h('div', { className: 'gp-list', role: 'radiogroup', 'aria-label': t('panel.effort') },
+        options.map((option) => {
+          const selected = selectedEffort === option.id;
+          return h(ui.ListRow, {
+            key: option.key,
+            title: option.name,
+            role: 'radio',
+            checked: selected,
+            selected,
+            disabled: busy,
+            onClick: () => onPick(option.id),
+          });
+        }),
       );
     }
 
@@ -163,6 +223,7 @@ window.__ModuleLoader__.load({
       toModelSelection,
       orderedGroups,
       providerName,
+      filterModelGroups,
       ModelRows,
       ModelListView,
       EffortListView,

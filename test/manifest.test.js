@@ -102,10 +102,16 @@ test('the Host entry exports Config plus apply and the Client orders the setting
   assert.match(entry, /export \{ apply \} from '\.\/host\/apply\.js'/);
 
   const config = readFileSync(new URL('../host/config.js', import.meta.url), 'utf8');
-  assert.match(config, /injectBrainstormingPrompt/);
-  assert.match(config, /injectUnlimitedBudgetPrompt/);
-  assert.equal((config.match(/default\(true\)/g) ?? []).length, 2, 'both switches default to on');
-  assert.equal((config.match(/volatile\(\)/g) ?? []).length, 2, 'both switches are volatile');
+  for (const field of [
+    'injectBrainstormingPrompt',
+    'injectUnlimitedBudgetPrompt',
+    'includeOriginalUserInstructions',
+    'includeMinimalRuntimeContext',
+  ]) {
+    assert.match(config, new RegExp(field));
+  }
+  assert.equal((config.match(/default\(true\)/g) ?? []).length, 4, 'all switches default to on');
+  assert.equal((config.match(/volatile\(\)/g) ?? []).length, 4, 'all switches are volatile');
 
   assert.ok(packageJson.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-settings'));
   assert.ok(packageJson.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-settings-general'));

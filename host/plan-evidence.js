@@ -35,12 +35,17 @@ Include:
 
 Never present a guess as fact, and never invent file paths, APIs, command output, or test results. Before presenting the plan, re-check that each citation is accurate. Keep the evidence compact: short headings and precise pointers, not raw logs or whole files.`;
 
+/** Default guidance (every switch on) appended while plan mode is active. */
+export const PLAN_EVIDENCE_GUIDANCE = `${PLAN_UNLIMITED_BUDGET_GUIDANCE}\n\n${PLAN_BRAINSTORMING_GUIDANCE}\n\n${PLAN_HANDOFF_GUIDANCE}`;
+
 /**
  * Compose the plan-mode guidance from its independently switchable parts.
  *
  * The budget reminder comes first as a general instruction, then the optional
  * brainstorming guidance, and the evidence/handoff guidance always closes the
  * section. Disabled parts are omitted entirely, never replaced by placeholders.
+ * With every switch on the precomputed `PLAN_EVIDENCE_GUIDANCE` constant is
+ * returned so the common path allocates nothing per prompt assembly.
  *
  * @param {object} [options]
  * @param {boolean} [options.brainstorming] whether the brainstorming paragraph is injected.
@@ -48,15 +53,13 @@ Never present a guess as fact, and never invent file paths, APIs, command output
  * @returns {string} the assembled section text.
  */
 export function composePlanGuidance({ brainstorming = true, unlimitedBudget = true } = {}) {
+  if (brainstorming !== false && unlimitedBudget !== false) return PLAN_EVIDENCE_GUIDANCE;
   const parts = [];
   if (unlimitedBudget !== false) parts.push(PLAN_UNLIMITED_BUDGET_GUIDANCE);
   if (brainstorming !== false) parts.push(PLAN_BRAINSTORMING_GUIDANCE);
   parts.push(PLAN_HANDOFF_GUIDANCE);
   return parts.join('\n\n');
 }
-
-/** Default guidance (every switch on) appended while plan mode is active. */
-export const PLAN_EVIDENCE_GUIDANCE = composePlanGuidance();
 
 /**
  * Read one switch from the plugin config.

@@ -24,24 +24,79 @@ window.__ModuleLoader__.load({
       'panel.modelError': '模型目录加载失败：{message}',
       'panel.subagentUnavailable': '子会话不支持切换模型。',
       'panel.applyNote': '模型选择会立即应用到当前会话。',
+      'panel.revise': '返回修改',
+      'panel.searchModels': '搜索模型',
+      'panel.noMatches': '没有匹配的模型。',
+      'panel.modelDirectoryLoading': '模型目录加载中，暂时无法创建新会话。',
+      'panel.modelDirectoryError': '模型目录不可用，将使用默认模型。',
       'panel.actions.execute.title': '执行计划',
       'panel.actions.execute.description': '在当前会话中按所选模型继续执行',
       'panel.actions.compact.title': '压缩上下文并执行',
       'panel.actions.compact.description': '先压缩较早历史，再执行计划',
       'panel.actions.clear.title': '清空上下文并执行…',
       'panel.actions.clear.description': '停止当前回合，在新会话中执行计划',
-      'compact.failed': '压缩未完成：{message}。即将继续执行计划…',
+      'compact.failed': '压缩未完成：{message}',
+      'compact.failedHint': '可以重试压缩、仍然执行计划，或取消本次执行。',
+      'compact.retry': '重试压缩',
+      'compact.retrying': '正在重试压缩…',
+      'compact.proceed': '仍然执行',
+      'compact.cancel': '取消',
+      'compact.success': '压缩完成，正在执行…',
+      'compact.error.usage': '用法：/great-plan-compact（不接受参数）',
+      'compact.error.planStateUnavailable': '当前组合无法读取 plan 状态。',
+      'compact.error.planInactive': 'plan 模式未激活，没有可压缩的内容。',
+      'compact.error.backendUnavailable': '当前部署没有可用的压缩后端。',
+      'compact.error.noReview': '没有待审核的计划可供压缩。',
+      'compact.error.empty': '待审计划之前没有可压缩的历史记录。',
+      'compact.error.busy': '另一个压缩正在进行，暂时无法压缩。',
+      'compact.error.changed': '压缩期间所选历史发生变化。',
+      'compact.error.summary': '压缩未能生成有用的摘要。',
+      'compact.error.commit': '压缩未正常完成。',
+      'compact.error.persistence': '压缩完成，但会话保存失败。',
+      'compact.error.cancelled': '压缩已取消。',
+      'compact.error.unavailable': '当前会话不支持 /great-plan-compact 命令。',
       'clear.title': '清空上下文并执行',
       'clear.warning': '此操作会停止当前回合，并在同一工作区创建新会话执行计划。当前会话会保留，不会归档。',
       'clear.preset': '新会话 Agent 模式',
       'clear.titleLabel': '新会话标题',
       'clear.autoTitle': '将自动生成标题',
       'clear.model': '模型与思考强度',
+      'clear.modelHint': '返回上级可修改',
       'clear.busy': '正在创建新会话…',
       'clear.confirm': '创建新会话并执行',
       'clear.kept': '旧会话会保留，可在列表中重新打开。',
       'clear.titleSuffix': ' · 执行计划',
       'clear.promptIntro': '用户已批准以下计划。请立即开始执行，不要重新规划。遵循计划中的证据与交接：复用已经确认的调研结果，不要重复调查；对标记为未验证或假设的内容先做核实。',
+      'clear.instructionsIntro': '本次 plan 模式期间用户发送的指令（按时间顺序，作为已批准计划的背景）：',
+      'clear.context.workspace': '工作区目录：{path}',
+      'clear.context.system': '系统：{system}',
+      'clear.context.time': '时间：{time}',
+      'clear.context.cleared': '旧上下文已清空：这是一个新会话，不包含旧会话的对话、系统提示或时间读数。',
+      'preview.title': '首条消息预览',
+      'preview.plan': '已批准的计划',
+      'preview.viewPlan': '查看完整计划',
+      'preview.hidePlan': '收起完整计划',
+      'preview.blocks': '首条消息将包含',
+      'preview.block.intro': '执行说明',
+      'preview.block.budget': 'token 预算提示',
+      'preview.block.runtime': '运行环境',
+      'preview.block.instructions': '原始用户指令',
+      'preview.block.plan': '已批准的计划',
+      'preview.included': '将携带',
+      'preview.excluded': '不携带',
+      'preview.instructionCount': '{count} 条 · {chars} 字符',
+      'preview.loadingInstructions': '正在读取计划模式指令…',
+      'preview.instructionsUnavailable': '未找到计划模式指令，将只发送计划。',
+      'preview.noInstructions': '本次不携带原始用户指令。',
+      'preview.oversized': '首条消息较长（{chars} 字符），可能接近模型的上下文上限。',
+      'preview.total': '合计 {chars} 字符',
+      'preview.approxTokens': '约 {tokens} tokens',
+      'preview.runtimeHint': '运行环境在执行时重新读取，预览中的时间可能与实际不同。',
+      'preview.minimalSwitchHint': '仅极简模式会携带运行环境。',
+      'preview.switches': '本次执行开关',
+      'preview.switchBudget': '携带 token 预算提示',
+      'preview.switchInstructions': '携带原始用户指令',
+      'preview.switchMinimal': '携带运行环境',
       'preset.title': '选择 Agent 模式',
       'preset.loading': '正在加载 Agent 模式…',
       'preset.unavailable': '当前部署没有可选的 Agent 模式，将使用默认模式。',
@@ -50,27 +105,40 @@ window.__ModuleLoader__.load({
       'preset.default': '默认模式',
       'preset.standard': '标准模式',
       'preset.ptc': 'PTC 模式',
-      'preset.minimal': '精简模式',
+      'preset.minimal': '极简模式',
       'preset.cordis': '创建者模式',
       'preset.standardDescription': '使用代码、文件和信息完成任务。',
       'preset.ptcDescription': '适合批量调用工具并整理结果。',
-      'preset.minimalDescription': '精简工具集，支持自动压缩历史。',
+      'preset.minimalDescription': 'Agent 使用终端和图片读取工具，并支持上下文压缩，适合测试和对比其基础表现。',
       'preset.cordisDescription': '创建插件或 Agent 预设。',
       'model.accountProvider': 'DeepSeek 账户',
       'error.reviewGone': '计划审核已结束，无法继续操作。',
       'error.approveFailed': '执行计划失败：{message}',
       'error.selectModelFailed': '应用模型选择失败：{message}',
       'error.freshFailed': '新会话执行失败：{message}',
+      'error.emptyPlan': '计划内容为空，无法执行。',
+      'error.createSessionFailed': '创建新会话失败：{message}',
+      'error.modelApplyFailed': '应用模型选择失败：{message}',
+      'error.startSessionFailed': '在新会话中开始执行失败：{message}',
+      'error.openSessionFailed': '新会话已创建，但无法打开：{message}',
+      'error.dismissFailed': '无法返回修改，请重试：{message}',
+      'error.cleanupFailed': '未能清理失败执行创建的新会话：{message}',
       'settings.nav': '卓越计划',
-      'settings.heading': '计划提示词',
+      'settings.heading': '计划与执行',
       'settings.brainstorm.title': '注入头脑风暴提示词',
       'settings.brainstorm.description': 'plan 模式下，当需求存在会改变方案的歧义时，先逐轮提出一个简短问题，再给出建议与权衡。关闭后仍保留证据链与执行交接提示。',
       'settings.budget.title': '注入 token 预算无上限提示词',
       'settings.budget.description': 'plan 模式与新会话执行时，提示模型 token 预算无上限，不要为节省用量而减少调研、工具调用或必要提问；最终计划与总结仍保持简洁。',
+      'settings.originalInstructions.title': '携带原始用户指令',
+      'settings.originalInstructions.description': '「清空上下文并执行」时，把本次 plan 模式期间用户发送的指令按时间顺序带入新会话，与已批准的计划一起作为首条消息。',
+      'settings.minimalContext.title': '极简模式下附带运行环境',
+      'settings.minimalContext.description': '新会话选择极简模式时，在首条消息中附带工作区目录、系统平台和当前时间/时区，并注明旧上下文已清空。',
       'settings.loading': '正在读取设置…',
       'settings.unavailable': '当前部署未提供该设置项。',
       'settings.readOnly': '当前配置不可写入。',
       'settings.saveFailed': '保存失败，请重试。',
+      'settings.reset': '恢复默认',
+      'settings.resetAria': '将「{title}」恢复为默认开启',
     };
 
     const en = {
@@ -94,24 +162,79 @@ window.__ModuleLoader__.load({
       'panel.modelError': 'Model catalog failed to load: {message}',
       'panel.subagentUnavailable': 'Model switching is unavailable in subagent sessions.',
       'panel.applyNote': 'Model changes apply to this session immediately.',
+      'panel.revise': 'Back to editing',
+      'panel.searchModels': 'Search models',
+      'panel.noMatches': 'No matching models.',
+      'panel.modelDirectoryLoading': 'The model catalog is still loading; a fresh session cannot start yet.',
+      'panel.modelDirectoryError': 'The model catalog is unavailable; the default model will be used.',
       'panel.actions.execute.title': 'Execute plan',
       'panel.actions.execute.description': 'Continue in this session with the selected model',
       'panel.actions.compact.title': 'Compact and execute',
       'panel.actions.compact.description': 'Compact older history, then execute the plan',
       'panel.actions.clear.title': 'Start fresh and execute…',
       'panel.actions.clear.description': 'Stop this turn and execute the plan in a new session',
-      'compact.failed': 'Compaction did not complete: {message}. Continuing to execute the plan…',
+      'compact.failed': 'Compaction did not complete: {message}',
+      'compact.failedHint': 'You can retry compaction, execute the plan anyway, or cancel this run.',
+      'compact.retry': 'Retry compaction',
+      'compact.retrying': 'Retrying compaction…',
+      'compact.proceed': 'Execute anyway',
+      'compact.cancel': 'Cancel',
+      'compact.success': 'Compaction complete; executing…',
+      'compact.error.usage': 'Usage: /great-plan-compact (no arguments)',
+      'compact.error.planStateUnavailable': 'Plan state is unavailable in this composition.',
+      'compact.error.planInactive': 'Plan mode is not active; nothing to compact.',
+      'compact.error.backendUnavailable': 'Compaction is unavailable because no compaction backend is composed.',
+      'compact.error.noReview': 'There is no pending plan review to compact.',
+      'compact.error.empty': 'No compactable history exists before the pending plan.',
+      'compact.error.busy': 'Compaction is unavailable because another compaction is running.',
+      'compact.error.changed': 'The history selected for compaction changed during the attempt.',
+      'compact.error.summary': 'Compaction could not produce a useful summary.',
+      'compact.error.commit': 'Compaction did not finish cleanly.',
+      'compact.error.persistence': 'Compaction finished, but the session could not be saved.',
+      'compact.error.cancelled': 'Compaction was cancelled.',
+      'compact.error.unavailable': 'The /great-plan-compact command is unavailable.',
       'clear.title': 'Start fresh and execute',
       'clear.warning': 'This stops the current turn and creates a new session in the same workspace to execute the plan. The current session is kept and is not archived.',
       'clear.preset': 'New session agent preset',
       'clear.titleLabel': 'New session title',
       'clear.autoTitle': 'A title will be generated',
       'clear.model': 'Model and reasoning effort',
+      'clear.modelHint': 'Go back to change',
       'clear.busy': 'Creating the new session…',
       'clear.confirm': 'Create session and execute',
       'clear.kept': 'The previous session is kept and can be reopened from the list.',
       'clear.titleSuffix': ' · Execute plan',
       'clear.promptIntro': 'The user approved the following plan. Execute it now without re-planning. Follow the plan\'s evidence and handoff: reuse what it already establishes instead of repeating the investigation, and verify what it marks as unverified or assumed.',
+      'clear.instructionsIntro': 'User instructions sent during plan mode, in chronological order (background for the approved plan):',
+      'clear.context.workspace': 'Workspace directory: {path}',
+      'clear.context.system': 'System: {system}',
+      'clear.context.time': 'Time: {time}',
+      'clear.context.cleared': 'Previous context cleared: this is a fresh session without the old conversation, system prompt, or time readings.',
+      'preview.title': 'First-message preview',
+      'preview.plan': 'Approved plan',
+      'preview.viewPlan': 'View full plan',
+      'preview.hidePlan': 'Hide full plan',
+      'preview.blocks': 'First message will include',
+      'preview.block.intro': 'Execution intro',
+      'preview.block.budget': 'Token budget reminder',
+      'preview.block.runtime': 'Runtime context',
+      'preview.block.instructions': 'Original user instructions',
+      'preview.block.plan': 'Approved plan',
+      'preview.included': 'Included',
+      'preview.excluded': 'Excluded',
+      'preview.instructionCount': '{count} items · {chars} chars',
+      'preview.loadingInstructions': 'Reading plan-mode instructions…',
+      'preview.instructionsUnavailable': 'No plan-mode instructions were found; only the plan will be sent.',
+      'preview.noInstructions': 'Original user instructions are excluded for this run.',
+      'preview.oversized': 'The first message is long ({chars} characters) and may approach the model\'s context limit.',
+      'preview.total': 'Total: {chars} characters',
+      'preview.approxTokens': 'About {tokens} tokens',
+      'preview.runtimeHint': 'Runtime context is read again at execution time, so the previewed time may differ.',
+      'preview.minimalSwitchHint': 'Runtime context is included only with the Minimal preset.',
+      'preview.switches': 'This-run switches',
+      'preview.switchBudget': 'Include token budget reminder',
+      'preview.switchInstructions': 'Include original user instructions',
+      'preview.switchMinimal': 'Include runtime context',
       'preset.title': 'Choose an agent preset',
       'preset.loading': 'Loading agent presets…',
       'preset.unavailable': 'No agent presets are available in this deployment; the default preset will be used.',
@@ -120,28 +243,66 @@ window.__ModuleLoader__.load({
       'preset.default': 'Default preset',
       'preset.standard': 'Standard',
       'preset.ptc': 'PTC',
-      'preset.minimal': 'Minimal',
+      'preset.minimal': 'Minimal mode',
       'preset.cordis': 'Creator',
       'preset.standardDescription': 'Work with code, files, and information.',
       'preset.ptcDescription': 'Call tools in batches and organize the results.',
-      'preset.minimalDescription': 'A small tool set with automatic history compaction.',
+      'preset.minimalDescription': 'The agent uses a terminal and image reading, with context compaction. Useful for testing and comparing its basic performance.',
       'preset.cordisDescription': 'Create plugins or agent presets.',
       'model.accountProvider': 'DeepSeek Account',
       'error.reviewGone': 'The plan review has ended.',
       'error.approveFailed': 'Executing the plan failed: {message}',
       'error.selectModelFailed': 'Applying the model selection failed: {message}',
       'error.freshFailed': 'The fresh-session execution failed: {message}',
+      'error.emptyPlan': 'The reviewed plan is empty.',
+      'error.createSessionFailed': 'Creating the new session failed: {message}',
+      'error.modelApplyFailed': 'Applying the model selection failed: {message}',
+      'error.startSessionFailed': 'Starting execution in the new session failed: {message}',
+      'error.openSessionFailed': 'The new session was created but could not be opened: {message}',
+      'error.dismissFailed': 'Could not return to editing: {message}',
+      'error.cleanupFailed': 'The unused new session could not be cleaned up: {message}',
       'settings.nav': 'Great Plan',
-      'settings.heading': 'Plan prompt',
+      'settings.heading': 'Planning and execution',
       'settings.brainstorm.title': 'Inject brainstorming prompt',
       'settings.brainstorm.description': 'In plan mode, ask one short question at a time when ambiguity could change the approach, then summarize recommendations and tradeoffs. Turning this off keeps the evidence chain and execution handoff guidance.',
       'settings.budget.title': 'Inject unlimited token budget prompt',
       'settings.budget.description': 'In plan mode and fresh-session execution, tell the model its token budget is unlimited and not to cut investigation, tool calls, or necessary questions to save tokens. Plans and summaries stay concise.',
+      'settings.originalInstructions.title': 'Include original user instructions',
+      'settings.originalInstructions.description': 'When starting fresh, carry the instructions the user sent during the current plan-mode session, in chronological order, into the new session\'s first message alongside the approved plan.',
+      'settings.minimalContext.title': 'Include runtime context in Minimal mode',
+      'settings.minimalContext.description': 'When the new session uses Minimal mode, include the workspace directory, system platform, and current time/time zone in its first message, and note that the previous context was cleared.',
       'settings.loading': 'Loading settings…',
       'settings.unavailable': 'This preference is unavailable in the current deployment.',
       'settings.readOnly': 'This preference is read-only in the current configuration.',
       'settings.saveFailed': 'Could not save. Please try again.',
+      'settings.reset': 'Reset to default',
+      'settings.resetAria': 'Reset "{title}" to its default (on)',
     };
+
+    /**
+     * Client chunk load waves.
+     *
+     * The first wave carries the primitives (`ui`) and the stateless actions, the
+     * second the configuration/preset surfaces, and the final wave the panel that
+     * composes them. Loading is parallel inside one wave and sequential across
+     * waves. `testSurface.loadChunks` exposes the grouping to the wiring tests
+     * only; the DSH Loader consumes just `inject` and `apply`.
+     */
+    const CHUNK_WAVES = [
+      ['./client.ui.js', './client.actions.js'],
+      ['./client.settings.js', './client.model.js', './client.preset.js'],
+      ['./client.panel.js'],
+    ];
+
+    /** Load every chunk in wave order, parallel inside one wave. */
+    async function loadChunks(load) {
+      const chunks = {};
+      for (const wave of CHUNK_WAVES) {
+        const values = await Promise.all(wave.map((spec) => load(spec)));
+        for (let index = 0; index < wave.length; index += 1) chunks[wave[index]] = values[index];
+      }
+      return chunks;
+    }
 
     return {
       inject: [
@@ -155,13 +316,20 @@ window.__ModuleLoader__.load({
         'remote.agentPresets',
         'uiWorkspace',
       ],
+      // Test-only surface: the DSH Loader consumes `inject` and `apply` only.
+      testSurface: {
+        dictionaries: { zh, en },
+        loadChunks: () => CHUNK_WAVES.map((wave) => [...wave]),
+      },
       async apply(ctx) {
-        const ui = await require.async('./client.ui.js');
-        const settings = await require.async('./client.settings.js');
-        await require.async('./client.model.js');
-        const preset = await require.async('./client.preset.js');
-        const actions = await require.async('./client.actions.js');
-        const panel = await require.async('./client.panel.js');
+        // Three waves: primitives + stateless actions, then the
+        // configuration/preset surfaces, then the panel that composes them.
+        const chunks = await loadChunks((spec) => require.async(spec));
+        const ui = chunks['./client.ui.js'];
+        const settings = chunks['./client.settings.js'];
+        const preset = chunks['./client.preset.js'];
+        const actions = chunks['./client.actions.js'];
+        const panel = chunks['./client.panel.js'];
 
         ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'great-plan: dictionaries');
         ctx.effect(() => ui.installStyles(), 'great-plan: styles');
@@ -169,10 +337,12 @@ window.__ModuleLoader__.load({
         const presetStore = preset.createPresetStore(ctx);
         const t = ctx.locale.bind(NS);
 
-        // The shared configuration forms back both the Settings page and the
-        // fresh-session budget reminder; without them both default to enabled.
-        const configForms = ctx.get('configForms');
-        const readUnlimitedBudget = () => settings.readBudgetSwitch(configForms);
+        // `configForms` is optional (not in the plugin-level inject list): the
+        // plan-review entry must load without the settings capability. The
+        // latest injected mirror backs both the Settings page and the
+        // fresh-session prompt switches; without it every switch defaults on.
+        let configForms;
+        const readFreshPromptSwitches = () => settings.readFreshPromptSwitches(configForms);
 
         ctx.slots.inject('conversation.plan-review.actions', () => ctx.slots.register({
           name: 'conversation.plan-review.actions',
@@ -181,13 +351,16 @@ window.__ModuleLoader__.load({
           locale: NS,
           inject: (sessionId) => ({
             directory: ctx.modelDirectories.directoryFor(sessionId),
-            actions: actions.createActions(ctx, sessionId, readUnlimitedBudget),
+            actions: actions.createActions(ctx, sessionId, readFreshPromptSwitches),
             presetStore,
             modelAvailable: ctx.sessions.subagentAddress(sessionId) === undefined,
+            readPromptSwitches: readFreshPromptSwitches,
           }),
         }, panel.ExecutionTrigger));
 
-        if (configForms !== undefined) {
+        ctx.inject(['configForms'], (scope) => {
+          configForms = scope.get('configForms');
+          if (configForms === undefined || configForms === null) return;
           ctx.slots.inject('settings.section', () => ctx.slots.register({
             name: 'settings.section',
             id: 'great-plan',
@@ -196,7 +369,7 @@ window.__ModuleLoader__.load({
             locale: NS,
             inject: () => ({ form: configForms.get('great-plan') }),
           }, settings.GreatPlanSection));
-        }
+        });
       },
     };
   },

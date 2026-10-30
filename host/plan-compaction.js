@@ -1,14 +1,37 @@
 import { selectPlanCompactionRange } from './plan-range.js';
 
-const USAGE = 'Usage: /great-plan-compact (no arguments)';
+/** The plan-review tool call that marks the pending plan review surface node. */
+export const EXIT_PLAN_MODE_TOOL = 'exit_plan_mode';
 
-const FAILURES = {
+/** The command accepts no arguments; this is its user-visible usage line. */
+export const USAGE = 'Usage: /great-plan-compact (no arguments)';
+
+/**
+ * Stable manual-compaction error codes mapped to user text.
+ *
+ * Every value is user-visible; the Client mirrors each string in
+ * `COMPACT_MESSAGE_KEYS` so it can be localized (cross-side test).
+ */
+export const FAILURES = {
   busy: 'Compaction is unavailable because another compaction is running.',
   changed: 'The history selected for compaction changed during the attempt.',
   summary: 'Compaction could not produce a useful summary.',
   commit: 'Compaction did not finish cleanly.',
   persistence: 'Compaction finished, but the session could not be saved.',
   cancelled: 'Compaction was cancelled.',
+};
+
+/**
+ * Static command failure messages, also mirrored by the Client's
+ * `COMPACT_MESSAGE_KEYS`. Dynamic messages (`...: ${messageOf(error)}`) are
+ * intentionally not listed and fall back to raw English when unmapped.
+ */
+export const MESSAGES = {
+  planStateUnavailable: 'Plan state is unavailable in this composition.',
+  planInactive: 'Plan mode is not active; nothing to compact.',
+  backendUnavailable: 'Compaction is unavailable because no compaction backend is composed.',
+  noReview: 'There is no pending plan review to compact.',
+  empty: 'No compactable history exists before the pending plan.',
 };
 
 function messageOf(error) {
@@ -20,18 +43,19 @@ export function createCompactCommand({ getProjections, getCompaction, getBalance
     name: 'great-plan-compact',
     description: 'Compact older plan history before executing (used by Great Plan).',
     async handler(invocation) {
-      if (invocation.rawInput.trim() !== '') return { kind: 'error', text: USAGE };
-      const { agent, signal } = invocation;
+      const rawInput = typeof invocation?.rawInput === 'string' ? invocation.rawInput.trim() : '';
+      if (rawInput !== '') return { kind: 'error', text: USAGE };
+      const { agent, signal } = invocation ?? {};
 
       let plan;
       try {
         const projections = getProjections();
-        if (projections?.stateOf === undefined) return { kind: 'error', text: 'Plan state is unavailable in this composition.' };
+        if (projections?.stateOf === undefined) return { kind: 'error', text: MESSAGES.planStateUnavailable };
         plan = projections.stateOf(agent.session, 'plan');
       } catch (error) {
         return { kind: 'error', text: `Plan state is unavailable: ${messageOf(error)}` };
       }
-      if (plan?.active !== true) return { kind: 'error', text: 'Plan mode is not active; nothing to compact.' };
+      if (plan?.active !== true) return { kind: 'error', text: MESSAGES.planInactive };
 
       let compaction;
       try {
@@ -39,7 +63,7 @@ export function createCompactCommand({ getProjections, getCompaction, getBalance
       } catch (error) {
         return { kind: 'error', text: `Compaction is unavailable: ${messageOf(error)}` };
       }
-      if (compaction?.compactRegion === undefined) return { kind: 'error', text: 'Compaction is unavailable because no compaction backend is composed.' };
+      if (compaction?.compactRegion === undefined) return { kind: 'error', text: MESSAGES.backendUnavailable };
 
       let balancedAfter;
       try {
@@ -50,12 +74,12 @@ export function createCompactCommand({ getProjections, getCompaction, getBalance
 
       let range;
       try {
-        range = selectPlanCompactionRange(agent.session, balancedAfter);
+        range = selectPlanCompactionRange(agent.session, balancedAfter, { planReviewTool: EXIT_PLAN_MODE_TOOL });
       } catch (error) {
         return { kind: 'error', text: `Unable to inspect plan history: ${messageOf(error)}` };
       }
-      if (range.error === 'no-review') return { kind: 'error', text: 'There is no pending plan review to compact.' };
-      if (range.error === 'empty') return { kind: 'error', text: 'No compactable history exists before the pending plan.' };
+      if (range.error === 'no-review') return { kind: 'error', text: MESSAGES.noReview };
+      if (range.error === 'empty') return { kind: 'error', text: MESSAGES.empty };
 
       try {
         const result = await compaction.compactRegion(range.start, range.end, agent, signal);

@@ -95,18 +95,23 @@ window.__ModuleLoader__.load({
         );
       }
       if (state.status === 'unavailable' || options.length === 0) return h(ui.Note, null, t('preset.unavailable'));
-      return h('div', { className: 'gp-list' },
+      return h('div', { className: 'gp-list', role: 'radiogroup', 'aria-label': t('preset.title') },
         state.status === 'error' ? h('div', null,
           h(ui.ErrorText, null, t('preset.error', { message: state.error ?? '' })),
           h(ui.Button, { variant: 'ghost', onClick: onRetry }, t('preset.retry')),
         ) : null,
-        options.map((option) => h(ui.ListRow, {
-          key: option.id,
-          title: presetDisplay(option, t),
-          description: presetDescription(option, t),
-          selected: option.id === selectedId,
-          onClick: () => onPick(option.id),
-        })),
+        options.map((option) => {
+          const selected = option.id === selectedId;
+          return h(ui.ListRow, {
+            key: option.id,
+            title: presetDisplay(option, t),
+            description: presetDescription(option, t),
+            role: 'radio',
+            checked: selected,
+            selected,
+            onClick: () => onPick(option.id),
+          });
+        }),
       );
     }
 

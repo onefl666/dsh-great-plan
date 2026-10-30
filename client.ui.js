@@ -10,16 +10,17 @@ window.__ModuleLoader__.load({
     const STYLE_ID = '@local/dsh-great-plan/ui.css';
 
     const CSS = `
-.gp-trigger{font:inherit;color:inherit;background:none;border:0;padding:0;display:inline-flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap}
+.gp-trigger{font:inherit;color:inherit;background:none;border:0;padding:0;min-width:24px;min-height:24px;display:inline-flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap}
 .gp-trigger:hover{opacity:.78}
 .gp-trigger:focus-visible{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary));outline-offset:3px;border-radius:4px}
 .gp-trigger-chevron{opacity:.65}
-.gp-backdrop{position:fixed;inset:0;z-index:1200;background:transparent}
+.gp-backdrop{position:fixed;inset:0;z-index:1200;background:color-mix(in srgb,var(--dsw-alias-bg-base) 40%,transparent)}
 .gp-dialog{position:fixed;z-index:1201;display:flex;flex-direction:column;background:var(--dsw-alias-bg-overlay);color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-xl,16px);box-shadow:var(--dsw-elevation-panel);overflow:hidden;font-family:inherit}
 .gp-dialog,.gp-dialog *{box-sizing:border-box}
 .gp-dialog-header{display:flex;align-items:flex-start;gap:8px;padding:14px 12px 8px 14px;flex:none}
 .gp-dialog-title-wrap{flex:1;min-width:0}
-.gp-dialog-title{font-size:15px;font-weight:500;line-height:22px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gp-dialog-title{margin:0;font-size:15px;font-weight:500;line-height:22px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gp-dialog-title:focus{outline:none}
 .gp-dialog-subtitle{margin-top:2px;color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:16px}
 .gp-dialog-body{padding:2px 8px 10px;overflow-y:auto;min-height:0;flex:1 1 auto;scrollbar-width:thin}
 .gp-icon-button{width:24px;height:24px;border:0;border-radius:999px;background:none;color:var(--dsw-alias-label-tertiary);display:grid;place-items:center;padding:0;cursor:pointer;flex:none}
@@ -79,18 +80,38 @@ window.__ModuleLoader__.load({
 .gp-static-label{font-size:13px;line-height:20px;flex:none}
 .gp-static-value{margin-left:auto;min-width:0;max-width:64%;color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px;overflow-wrap:anywhere;text-align:right}
 .gp-clear-actions{padding:4px 0 2px}
+.gp-plan{margin:2px 0 8px;padding:8px 9px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-1)}
+.gp-plan-heading{margin:0 0 4px;color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px;font-weight:500}
+.gp-plan-question{margin:0;color:var(--dsw-alias-label-primary);font-size:12px;line-height:18px;overflow-wrap:anywhere}
+.gp-plan-preview{margin:4px 0 0;color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:17px;overflow-wrap:anywhere}
+.gp-plan-toggle{align-self:flex-start;margin-top:4px}
+.gp-plan-body{margin:6px 0 0;padding:8px;max-height:180px;overflow:auto;border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font-family:inherit;font-size:11px;line-height:17px;white-space:pre-wrap;overflow-wrap:anywhere;scrollbar-width:thin}
+.gp-search{width:100%;min-height:32px;margin:2px 0 6px;padding:5px 9px;border:1px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;line-height:20px}
+.gp-search:focus-visible{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary));outline-offset:1px}
+.gp-checks{display:flex;flex-direction:column;gap:2px;margin:2px 0 8px}
+.gp-check-heading{margin:0 0 2px;color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px;font-weight:500}
+.gp-check{display:flex;align-items:flex-start;gap:8px;min-height:24px;padding:4px 2px;color:var(--dsw-alias-label-primary);font-size:12px;line-height:18px;cursor:pointer}
+.gp-check input{width:14px;height:14px;margin:2px 0 0;flex:none;accent-color:var(--dsw-alias-brand-primary)}
+.gp-check-disabled{color:var(--dsw-alias-label-dimmed,var(--dsw-alias-label-tertiary));cursor:default}
+.gp-check-copy{display:flex;flex-direction:column;gap:2px;min-width:0}
+.gp-check-hint{color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:16px}
+.gp-failure{margin:2px 0 8px}
+.gp-failure-actions{display:flex;flex-wrap:wrap;gap:6px;padding:2px 0 4px}
+.gp-status{margin:2px 0 6px;padding:6px 9px;border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font-size:11px;line-height:17px;overflow-wrap:anywhere}
 .gp-settings{display:flex;flex-direction:column;gap:4px;padding:4px 0 8px;width:100%}
 .gp-settings-heading{color:var(--dsw-alias-label-primary);font-size:14px;line-height:22px;font-weight:500;margin:0 0 4px}
 .gp-setting-row{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:16px 0;border-bottom:.5px solid var(--dsw-alias-border-l2)}
 .gp-setting-copy{min-width:0;display:flex;flex-direction:column;gap:4px}
 .gp-setting-title{color:var(--dsw-alias-label-primary);font-size:14px;line-height:20px}
 .gp-setting-desc{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px}
-.gp-switch{position:relative;flex:none;width:36px;height:20px;padding:0;border:0;border-radius:999px;background:var(--dsw-alias-border-l2);cursor:pointer;transition:background .15s ease}
+.gp-setting-controls{display:flex;align-items:center;gap:8px;flex:none}
+.gp-setting-reset{min-height:24px;padding:2px 8px;font-size:12px}
+.gp-switch{position:relative;flex:none;width:36px;height:24px;padding:0;border:0;border-radius:999px;background:var(--dsw-alias-border-l2);cursor:pointer;transition:background .15s ease}
 .gp-switch-on{background:var(--dsw-alias-brand-primary)}
 .gp-switch:disabled{opacity:.5;cursor:default}
 .gp-switch:focus-visible{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary));outline-offset:2px}
-.gp-switch-thumb{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--dsw-alias-bg-base);transition:transform .15s ease}
-.gp-switch-on .gp-switch-thumb{transform:translateX(16px)}
+.gp-switch-thumb{position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:var(--dsw-alias-bg-base);transition:transform .15s ease}
+.gp-switch-on .gp-switch-thumb{transform:translateX(12px)}
 @media (max-width:720px){.gp-trigger-label,.gp-trigger-chevron{display:none}.gp-trigger{padding:3px}.gp-dialog{max-height:calc(100vh - 24px)}}
 @media (prefers-reduced-motion:reduce){.gp-dot{animation:none}.gp-switch,.gp-switch-thumb{transition:none}}
 @keyframes gp-pulse{0%,100%{opacity:.35}50%{opacity:1}}
@@ -260,7 +281,7 @@ window.__ModuleLoader__.load({
         h('span', { className: 'gp-row-title' }, label),
         description === undefined ? null : h('span', { className: 'gp-row-desc' }, description),
       ),
-      h('span', { className: 'gp-row-value' }, value),
+      h('span', { className: 'gp-row-value', title: typeof value === 'string' ? value : undefined }, value),
       h(IconChevronRight, { className: 'gp-row-chevron' }),
       );
     }
@@ -268,19 +289,23 @@ window.__ModuleLoader__.load({
     function StaticRow({ label, value }) {
       return h('div', { className: 'gp-static-row' },
         h('span', { className: 'gp-static-label' }, label),
-        h('span', { className: 'gp-static-value' }, value),
+        h('span', { className: 'gp-static-value', title: typeof value === 'string' ? value : undefined }, value),
       );
     }
 
-    function ListRow({ title, description, selected = false, disabled = false, onClick }) {
+    function ListRow({ title, description, selected = false, disabled = false, onClick, role, checked }) {
+      const isRadio = role === 'radio';
+      const isChecked = checked === undefined ? selected === true : checked === true;
       return h('button', {
         type: 'button',
         className: 'gp-list-row',
         disabled,
         onClick,
-        'aria-pressed': selected,
+        role: isRadio ? 'radio' : undefined,
+        'aria-checked': isRadio ? isChecked : undefined,
+        'aria-pressed': isRadio ? undefined : selected,
       },
-      h('span', { className: 'gp-list-check' }, selected ? h(IconCheck) : null),
+      h('span', { className: 'gp-list-check' }, isChecked ? h(IconCheck) : null),
       h('span', { className: 'gp-list-row-title' },
         h('span', null, title),
         description === undefined ? null : h('span', { className: 'gp-list-row-desc' }, description),
@@ -288,8 +313,28 @@ window.__ModuleLoader__.load({
       );
     }
 
-    function GroupHeading({ children }) {
-      return h('div', { className: 'gp-group-heading' }, children);
+    function GroupHeading({ children, role }) {
+      return h('div', { className: 'gp-group-heading', role }, children);
+    }
+
+    function Checkbox({ label, checked = false, disabled = false, onChange, hint, className }) {
+      return h('label', {
+        className: cx('gp-check', disabled && 'gp-check-disabled', className),
+      },
+      h('input', {
+        type: 'checkbox',
+        className: 'gp-check-input',
+        checked: checked === true,
+        disabled,
+        onChange: (event) => {
+          if (typeof onChange === 'function') onChange(event?.target?.checked === true);
+        },
+      }),
+      h('span', { className: 'gp-check-copy' },
+        h('span', { className: 'gp-check-label' }, label),
+        hint === undefined || hint === null ? null : h('span', { className: 'gp-check-hint' }, hint),
+      ),
+      );
     }
 
     function Note({ children, className }) {
@@ -305,7 +350,7 @@ window.__ModuleLoader__.load({
     }
 
     function WarningBox({ children }) {
-      return h('div', { className: 'gp-warning-box' }, h(IconWarning), h('span', null, children));
+      return h('div', { className: 'gp-warning-box', role: 'status' }, h(IconWarning), h('span', null, children));
     }
 
     function Loading({ children }) {
@@ -361,6 +406,42 @@ window.__ModuleLoader__.load({
       }, [open, anchorRef, panelRef, setPosition]);
     }
 
+    /** Collect the panel's focusable elements in DOM order. */
+    function focusableIn(panel) {
+      if (panel === null || panel === undefined || typeof panel.querySelectorAll !== 'function') return [];
+      return [...panel.querySelectorAll('button:not([disabled]),input:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')]
+        .filter((node) => node instanceof HTMLElement && node.offsetParent !== null);
+    }
+
+    /**
+     * One dialog keydown handler: Escape closes only while not blocked, and a
+     * blocked Escape is consumed so the host never sees it; Tab stays trapped.
+     */
+    function handleDialogKeyDown(event, { blocked, onClose, panel } = {}) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        if (blocked !== true && typeof onClose === 'function') onClose();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const list = focusableIn(panel);
+      if (list.length === 0) {
+        event.preventDefault();
+        return;
+      }
+      const firstNode = list[0];
+      const lastNode = list[list.length - 1];
+      const active = document.activeElement;
+      if (event.shiftKey && (active === firstNode || panel?.contains(active) !== true)) {
+        event.preventDefault();
+        lastNode.focus();
+      } else if (!event.shiftKey && (active === lastNode || panel?.contains(active) !== true)) {
+        event.preventDefault();
+        firstNode.focus();
+      }
+    }
+
     function useDialogFocus(open, panelRef, anchorRef, onClose, blocked) {
       const blockedRef = useRef(blocked);
       blockedRef.current = blocked;
@@ -370,38 +451,14 @@ window.__ModuleLoader__.load({
         if (!open) return undefined;
         const panel = panelRef.current;
         const previous = document.activeElement;
-        const focusables = () => {
-          if (panel === null) return [];
-          return [...panel.querySelectorAll('button:not([disabled]),input:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')]
-            .filter((node) => node instanceof HTMLElement && node.offsetParent !== null);
-        };
-        const first = panel?.querySelector('[data-autofocus]') ?? focusables()[0];
+        const first = panel?.querySelector('[data-autofocus]') ?? focusableIn(panel)[0];
         first?.focus();
         const onKeyDown = (event) => {
-          if (event.key === 'Escape') {
-            if (!blockedRef.current) {
-              event.preventDefault();
-              event.stopPropagation();
-              onCloseRef.current();
-            }
-            return;
-          }
-          if (event.key !== 'Tab') return;
-          const list = focusables();
-          if (list.length === 0) {
-            event.preventDefault();
-            return;
-          }
-          const firstNode = list[0];
-          const lastNode = list[list.length - 1];
-          const active = document.activeElement;
-          if (event.shiftKey && (active === firstNode || panel?.contains(active) !== true)) {
-            event.preventDefault();
-            lastNode.focus();
-          } else if (!event.shiftKey && (active === lastNode || panel?.contains(active) !== true)) {
-            event.preventDefault();
-            firstNode.focus();
-          }
+          handleDialogKeyDown(event, {
+            blocked: blockedRef.current,
+            onClose: () => onCloseRef.current(),
+            panel,
+          });
         };
         document.addEventListener('keydown', onKeyDown, true);
         return () => {
@@ -412,7 +469,7 @@ window.__ModuleLoader__.load({
       }, [open, panelRef, anchorRef]);
     }
 
-    function Dialog({ open, onRequestClose, blocked, anchorRef, labelledBy, children }) {
+    function Dialog({ open, onRequestClose, blocked, busy = false, anchorRef, labelledBy, children }) {
       const panelRef = useRef(null);
       const [position, setPosition] = useState(null);
       useAnchoredPosition(open, anchorRef, panelRef, setPosition);
@@ -431,6 +488,7 @@ window.__ModuleLoader__.load({
             className: 'gp-dialog',
             role: 'dialog',
             'aria-modal': 'true',
+            'aria-busy': busy ? 'true' : undefined,
             'aria-labelledby': labelledBy,
             style: position ?? { top: 0, left: 0, opacity: 0 },
           }, children),
@@ -462,11 +520,14 @@ window.__ModuleLoader__.load({
       StaticRow,
       ListRow,
       GroupHeading,
+      Checkbox,
       Note,
       ErrorText,
       WarningText,
       WarningBox,
       Loading,
+      focusableIn,
+      handleDialogKeyDown,
       Dialog,
     };
   },
