@@ -196,7 +196,7 @@ trigger (only when pendingInteraction.kind === 'plan-review'; the dialog is moun
 | `locale/en.json`, `locale/zh.json` | Plugin listing `meta.title`/`meta.description` only — not runtime copy. |
 | `icon.svg` | Plugin icon (SVG, inside the package, < 256 KiB). |
 | `cordis.patch.yml` | Host bundle patch inserting row `great-plan`. |
-| `package.json` | Manifest: `exports`, `files`, `peerDependencies` (Host imports supplied by the installation), `dsh.bundle.patch`, `dsh.client`; version `0.3.0`. |
+| `package.json` | Manifest: `exports`, `files`, `peerDependencies` (Host imports supplied by the installation), `dsh.bundle.patch`, `dsh.client`; version `0.4.0`. |
 | `test/*.test.js` | Offline Node tests (see **Host Tests**). |
 | `tools/gate.sh` | Verification gate (see **Gate**). |
 | `.github/workflows/gate.yml` | CI: runs the gate on push and pull requests with Node 24. |
@@ -270,7 +270,7 @@ Frozen identifiers:
 - zh/en dictionary text is product copy: don't "improve" strings without a request.
 - `client.js` `CHUNK_WAVES` grouping (ui+actions → settings/model/preset → panel) and the test-only `testSurface` returned beside `inject`/`apply`. The grouping must respect synchronous sibling requires; `testSurface` must stay test-only (the Loader ignores it, but `apply` and chunks must not read it).
 
-Known limitations (0.3.0, as shipped):
+Known limitations (0.4.0, as shipped):
 
 - The model list has a simple case-insensitive substring search; the Composer model control remains the full picker and the two never share state. Selecting a model applies immediately and is saved as the default model by existing DSH behavior.
 - Compaction requires a composed backend and makes one summary model request. When it cannot run (unavailable backend, empty history, failed request, cancellation) the plan is **not** approved: the dialog keeps a persistent failure block with **Retry compaction / Execute anyway / Cancel**. The conversation's command result card stays English even in a Chinese UI (the Host command contract has no locale); the dialog copy is localized for the static host messages and falls back to English for dynamic `...: <detail>` failures.
@@ -292,7 +292,7 @@ Debt and quirks (record, don't fix unless asked):
 - `@deepseek-ai/dsh-compaction` is imported dynamically and `@deepseek-ai/schemastery` statically in `host/config.js`; both are declared under `peerDependencies` and resolved to the DSH installation's copies by the runtime resolution (the offline tests cannot resolve them, so they never import `host/config.js`). The peer mapping is load-bearing: without it the import resolves from the workspace and plugin activation fails. A composition without compaction degrades to a command error plus the retry/proceed/cancel dialog; a Host where `host/config.js` cannot resolve fails the plugin load, which is why the config import stays in its own module.
 - This workspace became a git repository on 2026-10-24 (`origin` = `https://github.com/onefl666/dsh-great-plan`, branch `main`); history before that has no rollback. Don't commit or push unless asked.
 - The dialog renders through a React portal to `document.body` (existing pattern). Don't hand-write DOM outside components or add a second application root.
-- `0.3.0`, private local package; no lockfile and no `node_modules` in this repo.
+- `0.4.0`, private local package; no lockfile and no `node_modules` in this repo.
 
 ## Maintaining This File
 
