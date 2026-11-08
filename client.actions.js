@@ -9,6 +9,14 @@ window.__ModuleLoader__.load({
     /** Model-facing reminder appended to fresh-session execution when the budget switch is on. */
     const UNLIMITED_BUDGET_REMINDER = 'Token budget: unlimited. Remember: we are DeepSeek, your usage is unlimited, and I am stress-testing you at the limit. Do not skimp on tokens — spend freely; you are very wealthy. Do not reduce investigation, tool calls, or necessary questions to save tokens; keep the final summary concise.';
 
+    /**
+     * Exact model-facing text native plan mode appends after an approved review.
+     *
+     * A fresh session has no `exit_plan_mode` tool result, so the plugin appends
+     * the same canonical handoff to its first message. Keep it byte-identical.
+     */
+    const PLAN_APPROVED_HANDOFF = 'Plan approved — plan mode exited; carry out the plan starting with your next step.';
+
     /** Fixed wrapper tags keep the model-facing prompt parseable across locales. */
     const PLAN_MODE_INSTRUCTIONS_TAG = 'plan-mode-user-instructions';
     const FRESH_SESSION_CONTEXT_TAG = 'fresh-session-context';
@@ -494,7 +502,7 @@ window.__ModuleLoader__.load({
       };
     }
 
-    /** Assemble the five first-message blocks; the only place the text is built. */
+    /** Assemble the six first-message blocks; the only place the text is built. */
     function assembleFreshPrompt({
       t,
       intro,
@@ -505,10 +513,12 @@ window.__ModuleLoader__.load({
     }) {
       const instructionBlock = buildInstructionBlock(carriedInstructions, t);
       const planBlock = `<approved-plan>\n${planBody}\n</approved-plan>`;
+      const handoffBlock = `\n\n${PLAN_APPROVED_HANDOFF}`;
       return {
-        text: `${intro}\n\n${budget}${runtimeContext}${instructionBlock}${planBlock}`,
+        text: `${intro}\n\n${budget}${runtimeContext}${instructionBlock}${planBlock}${handoffBlock}`,
         instructionBlock,
         planBlock,
+        handoffBlock,
       };
     }
 
@@ -546,12 +556,12 @@ window.__ModuleLoader__.load({
      * Describe the fresh-session first message for the clear-view preview.
      *
      * `text` is byte-identical to `composeFreshPrompt` for the same inputs; the
-     * five blocks always appear in send order and their `chars` are the exact
+     * six blocks always appear in send order and their `chars` are the exact
      * contributions to `text`, so they always sum to `totalChars`.
      */
     function describeFreshPrompt(args = {}) {
       const parts = resolveFreshPromptParts(args);
-      const { text, instructionBlock, planBlock } = assembleFreshPrompt(parts);
+      const { text, instructionBlock, planBlock, handoffBlock } = assembleFreshPrompt(parts);
       const carried = parts.carriedInstructions;
       const instructionChars = parts.instructionTexts.reduce((total, item) => total + item.length, 0);
       const blocks = [
@@ -585,6 +595,12 @@ window.__ModuleLoader__.load({
           titleKey: 'preview.block.plan',
           included: true,
           chars: planBlock.length,
+        },
+        {
+          id: 'approved',
+          titleKey: 'preview.block.approved',
+          included: true,
+          chars: handoffBlock.length,
         },
       ];
       const totalChars = text.length;
@@ -979,6 +995,7 @@ window.__ModuleLoader__.load({
     return {
       messageOf,
       UNLIMITED_BUDGET_REMINDER,
+      PLAN_APPROVED_HANDOFF,
       PLAN_MODE_INSTRUCTIONS_TAG,
       FRESH_SESSION_CONTEXT_TAG,
       FRESH_PROMPT_WARN_CHARS,

@@ -203,6 +203,7 @@ function stubActionHelpers() {
           count: includeInstructions ? all.length : 0,
         },
         { id: 'plan', titleKey: 'preview.block.plan', included: true, chars: 0 },
+        { id: 'approved', titleKey: 'preview.block.approved', included: true, chars: 0 },
       ];
       const totalChars = text.length;
       return {
@@ -694,6 +695,7 @@ test('the clear view renders the plan, the block list and the char totals', asyn
     'preview.block.runtime',
     'preview.block.instructions',
     'preview.block.plan',
+    'preview.block.approved',
   ]) {
     assert.ok(nodeText(node).includes(key), `preview lists ${key}`);
   }

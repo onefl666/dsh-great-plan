@@ -96,6 +96,11 @@ const RELEASE_KEYS = [
   'settings.resetAria',
 ];
 
+/** Locale keys the 0.4.0 release adds or changes. */
+const RELEASE_KEYS_0_4_0 = [
+  'preview.block.approved',
+];
+
 /** Placeholder names used by one translated string. */
 function placeholdersOf(value) {
   return [...new Set([...value.matchAll(/\{([a-zA-Z0-9_]+)\}/g)].map((match) => match[1]))].sort();
@@ -142,6 +147,14 @@ test('every key uses the same placeholders in both locales', () => {
 test('the 0.3.0 locale additions are present in both dictionaries', () => {
   const { zh, en } = createPlugin().testSurface.dictionaries;
   for (const key of RELEASE_KEYS) {
+    assert.equal(typeof zh[key], 'string', `zh is missing ${key}`);
+    assert.equal(typeof en[key], 'string', `en is missing ${key}`);
+  }
+});
+
+test('the 0.4.0 locale additions are present in both dictionaries', () => {
+  const { zh, en } = createPlugin().testSurface.dictionaries;
+  for (const key of RELEASE_KEYS_0_4_0) {
     assert.equal(typeof zh[key], 'string', `zh is missing ${key}`);
     assert.equal(typeof en[key], 'string', `en is missing ${key}`);
   }

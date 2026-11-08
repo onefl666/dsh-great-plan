@@ -12,6 +12,7 @@ import {
   composePlanGuidance,
   planEvidenceText,
   readBrainstormingEnabled,
+  readPlanModeActive,
   readUnlimitedBudgetEnabled,
   registerPlanEvidenceSection,
 } from '../host/plan-evidence.js';
@@ -61,18 +62,23 @@ test('guidance covers budgeting, brainstorming, evidence, handoff, and anti-fabr
   assert.match(PLAN_EVIDENCE_GUIDANCE, /explore proactively/i);
   assert.match(PLAN_EVIDENCE_GUIDANCE, /think deeply/i);
   assert.match(PLAN_EVIDENCE_GUIDANCE, /multiple relevant aspects|from multiple aspects/i);
-  assert.match(PLAN_EVIDENCE_GUIDANCE, /at least two subagents/i);
-  assert.match(PLAN_EVIDENCE_GUIDANCE, /distinct aspects/i);
+  assert.match(PLAN_EVIDENCE_GUIDANCE, /you are the team lead/i);
+  assert.match(PLAN_EVIDENCE_GUIDANCE, /spawn_teammate/);
+  assert.match(PLAN_EVIDENCE_GUIDANCE, /at least two exploration teammates/i);
+  assert.match(PLAN_EVIDENCE_GUIDANCE, /distinct, concrete scope/i);
   assert.match(PLAN_EVIDENCE_GUIDANCE, /concise, evidence-backed findings/i);
-  assert.match(PLAN_EVIDENCE_GUIDANCE, /compare their findings and resolve conflicts/i);
-  assert.match(PLAN_EVIDENCE_GUIDANCE, /separate planning subagent/i);
+  assert.match(PLAN_EVIDENCE_GUIDANCE, /file paths and line ranges/i);
+  assert.match(PLAN_EVIDENCE_GUIDANCE, /do not investigate those scopes yourself/i);
+  assert.match(PLAN_EVIDENCE_GUIDANCE, /collect every result and resolve conflicts yourself/i);
+  assert.match(PLAN_EVIDENCE_GUIDANCE, /one separate planning teammate/i);
   assert.match(PLAN_EVIDENCE_GUIDANCE, /candidate final plan/i);
   assert.match(PLAN_EVIDENCE_GUIDANCE, /consolidated evidence/i);
-  assert.match(PLAN_EVIDENCE_GUIDANCE, /verify the evidence yourself/i);
-  assert.match(PLAN_EVIDENCE_GUIDANCE, /if delegation is unavailable/i);
+  assert.match(PLAN_EVIDENCE_GUIDANCE, /verify the evidence and the candidate plan yourself/i);
+  assert.match(PLAN_EVIDENCE_GUIDANCE, /if teammate creation is unavailable/i);
+  assert.match(PLAN_EVIDENCE_GUIDANCE, /say so in the plan and continue alone/i);
   assert.match(PLAN_EVIDENCE_GUIDANCE, /never invent subagent work/i);
   assert.ok(PLAN_EVIDENCE_GUIDANCE.length > 400, 'guidance must carry substantial handoff instructions');
-  assert.ok(PLAN_EVIDENCE_GUIDANCE.length < 3000, 'guidance must stay compact');
+  assert.ok(PLAN_EVIDENCE_GUIDANCE.length < 3200, 'guidance must stay compact');
 });
 
 test('the unlimited-budget reminder asks for free spending without cutting the work', () => {
@@ -122,6 +128,73 @@ function sectionText(getPlanMode) {
   registerPlanEvidenceSection({ systemPrompt, getPlanMode });
   return systemPrompt.sections[0].text({ agent: AGENT });
 }
+
+function scopedAgent(state) {
+  const session = { id: 'session-scoped' };
+  return {
+    session,
+    ctx: {
+      get(name) {
+        if (name !== 'planMode') return undefined;
+        return {
+          get(agent) {
+            assert.equal(agent.session, session);
+            return state;
+          },
+        };
+      },
+    },
+  };
+}
+
+function projectionsOf(view) {
+  return {
+    snapshot(session, keys) {
+      assert.equal(session, AGENT.session);
+      assert.deepEqual([...keys], ['plan']);
+      return { values: { plan: view } };
+    },
+  };
+}
+
+test('readPlanModeActive prefers the agent-scoped planMode over the host instance', () => {
+  const host = { get: () => ({ active: false }) };
+  assert.equal(readPlanModeActive(scopedAgent({ active: true }), () => host), true);
+  // The scoped instance is authoritative: its inactive state wins over an
+  // active host-plane read.
+  assert.equal(readPlanModeActive(scopedAgent({ active: false }), () => ({ get: () => ({ active: true }) })), false);
+});
+
+test('readPlanModeActive honors a pending selection over the logged state', () => {
+  assert.equal(readPlanModeActive(scopedAgent({ active: false, pending: true })), true);
+  assert.equal(readPlanModeActive(scopedAgent({ active: true, pending: false })), false);
+});
+
+test('readPlanModeActive falls back to the host planMode without a scoped service', () => {
+  assert.equal(readPlanModeActive(AGENT, () => ({ get: () => ({ active: true }) })), true);
+  assert.equal(readPlanModeActive(AGENT, () => ({ get: () => ({ active: false }) })), false);
+  assert.equal(readPlanModeActive(AGENT, () => undefined), false);
+});
+
+test('readPlanModeActive falls back to the plan projection view', () => {
+  assert.equal(
+    readPlanModeActive(AGENT, () => { throw new Error('host plan mode is unavailable'); }, () => projectionsOf({ active: true })),
+    true,
+  );
+  assert.equal(readPlanModeActive(AGENT, undefined, () => projectionsOf({ active: false, pending: true })), true);
+  assert.equal(readPlanModeActive(AGENT, undefined, () => projectionsOf({ active: false, pending: false })), false);
+  assert.equal(readPlanModeActive(AGENT, undefined, () => projectionsOf(undefined)), false);
+  assert.equal(readPlanModeActive(AGENT, undefined, () => ({ snapshot: () => ({ values: {} }) })), false);
+});
+
+test('readPlanModeActive degrades to inactive when every source is missing or throws', () => {
+  assert.equal(readPlanModeActive(undefined, undefined, undefined), false);
+  assert.equal(readPlanModeActive(null, undefined, undefined), false);
+  assert.equal(readPlanModeActive(AGENT, () => { throw new Error('unavailable'); }, () => { throw new Error('unavailable'); }), false);
+  assert.equal(readPlanModeActive(AGENT, () => ({ get: () => { throw new Error('unavailable'); } })), false);
+  const brokenCtx = { session: { id: 's' }, ctx: { get: () => { throw new Error('no scoped services'); } } };
+  assert.equal(readPlanModeActive(brokenCtx, undefined, undefined), false);
+});
 
 test('composePlanGuidance omits each disabled part and always keeps the handoff', () => {
   assert.equal(
@@ -248,6 +321,38 @@ test('an unreadable plan-mode read degrades the section to empty text', () => {
   });
 
   assert.equal(systemPrompt.sections[0].text({ agent: AGENT }), '');
+});
+
+test('the registered section reads agent-scoped plan state when the host read fails', () => {
+  // Regression: the section used to render empty because the host-plane
+  // planMode cannot see preset-scoped plan state.
+  const systemPrompt = createSystemPrompt();
+  registerPlanEvidenceSection({
+    systemPrompt,
+    getPlanMode: () => {
+      throw new Error('host plan mode cannot see preset state');
+    },
+  });
+
+  const [section] = systemPrompt.sections;
+  assert.equal(section.text({ agent: scopedAgent({ active: true }) }), PLAN_EVIDENCE_GUIDANCE);
+  assert.equal(section.text({ agent: scopedAgent({ active: false }) }), '');
+});
+
+test('the registered section falls back to the plan projection when every planMode read fails', () => {
+  const systemPrompt = createSystemPrompt();
+  registerPlanEvidenceSection({
+    systemPrompt,
+    getPlanMode: () => {
+      throw new Error('host plan mode cannot see preset state');
+    },
+    getSessionProjections: () => projectionsOf({ active: true }),
+  });
+
+  const [section] = systemPrompt.sections;
+  assert.equal(section.text({ agent: AGENT }), PLAN_EVIDENCE_GUIDANCE);
+  // An agent with a scoped inactive service stays empty even with an active projection.
+  assert.equal(section.text({ agent: scopedAgent({ active: false }) }), '');
 });
 
 test('the registered section follows both live switches without re-registering', () => {
@@ -392,4 +497,59 @@ test('apply registers the compact command, the evidence section, and the setting
   assert.equal(sections[0].order, 501);
   assert.equal(sections[0].text({ agent: AGENT }), PLAN_HANDOFF_GUIDANCE);
   assert.deepEqual(policies, [{ presentation: { auto: false }, owner: ctx.fiber }]);
+});
+
+test('apply lets the evidence section fall back to the plan projection when planMode fails', () => {
+  const sections = [];
+  const ctx = {
+    fiber: Symbol('great-plan fiber'),
+    get(name) {
+      if (name === 'planMode') throw new Error('host plan mode is unavailable');
+      if (name === 'sessionProjections') return projectionsOf({ active: true });
+      return undefined;
+    },
+    inject(dependencies, callback) {
+      if (dependencies.includes('commands')) {
+        callback({
+          commands: {
+            register() {
+              return () => {};
+            },
+          },
+        });
+      }
+      if (dependencies.includes('systemPrompt')) {
+        callback({
+          systemPrompt: {
+            getSectionOrder: () => 500,
+            section(section) {
+              sections.push(section);
+              return () => {};
+            },
+          },
+        });
+      }
+      if (dependencies.includes('settings')) {
+        callback({
+          effect(run) {
+            const cleanup = run();
+            return typeof cleanup === 'function' ? cleanup : () => {};
+          },
+          settings: {
+            configure() {
+              return () => {};
+            },
+          },
+        });
+      }
+    },
+  };
+
+  apply(ctx, {
+    injectBrainstormingPrompt: { get: () => true },
+    injectUnlimitedBudgetPrompt: { get: () => true },
+  });
+
+  assert.equal(sections.length, 1);
+  assert.equal(sections[0].text({ agent: AGENT }), PLAN_EVIDENCE_GUIDANCE);
 });

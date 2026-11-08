@@ -19,7 +19,7 @@ export const PLAN_EVIDENCE_ORDER_FALLBACK = 501;
 export const PLAN_BRAINSTORMING_GUIDANCE = `Collaborative discovery and evidence-first plan handoff:
 Before proposing a plan, assess the user's goal, why it matters, success criteria, constraints, current state, and available resources. Do not mechanically ask a checklist.
 When an unknown answer could materially change the scope or approach, ask one concise, open-ended question per turn and wait for its answer before finalizing. If the request is clear or the user explicitly delegates the choice, proceed without needless questions.
-Explore proactively and think deeply from multiple aspects. Delegate at least two subagents to investigate distinct aspects in parallel, give each a concrete scope, and require concise, evidence-backed findings. Compare their findings and resolve conflicts. Delegate a separate planning subagent to draft a candidate final plan from consolidated evidence; verify the evidence yourself, resolve disagreements, and submit the synthesized plan through the native review flow. If delegation is unavailable or fails, say so; never invent subagent work.
+Explore proactively and think deeply from multiple aspects. You are the Team Lead: use \`spawn_teammate\` to create at least two exploration teammates in parallel, each with one distinct, concrete scope, and require concise, evidence-backed findings with file paths and line ranges. Do not investigate those scopes yourself while teammates work; collect every result and resolve conflicts yourself. Then create one separate planning teammate to draft a candidate final plan from the consolidated evidence. Verify the evidence and the candidate plan yourself, resolve disagreements, and submit the synthesized plan through the native review flow. If teammate creation is unavailable or fails, say so in the plan and continue alone; never invent subagent work.
 Consider multiple plausible approaches; present alternatives and tradeoffs only when they help the user decide. State the recommendation's key reason and distinguish user-stated requirements from your recommendations, assumptions, and unverified points. Give a concise rationale summary, not private step-by-step chain-of-thought. Do not imply the user approved a proposal they have not approved. Once material uncertainties are resolved, deliver a plan through the native review flow; this guidance does not authorize execution.`;
 
 /** Model-facing unlimited-token-budget reminder; the Settings page can switch it off. */
@@ -145,15 +145,80 @@ export function planEvidenceText(planMode, agent, brainstorming = true, unlimite
 }
 
 /**
+ * Decide whether plan mode is active for the step being assembled.
+ *
+ * The Host plane cannot rely on its own `planMode` instance: agent presets
+ * commonly mount the plan-mode plugin in an isolated group, so the host-plane
+ * instance does not see the state that the preset drives. The agent's own
+ * scoped context (`agent.ctx`) carries the instance that owns the session's
+ * plan state and the pending selection's direction — the same data source the
+ * native `plan:policy` section reads. The host-plane instance is the fallback
+ * for compositions where plan mode is host-owned, and the shared `plan`
+ * session projection (the unit the compaction command also reads) is the final
+ * synchronous fallback. Every source degrades to inactive instead of throwing.
+ *
+ * @param {object | undefined} agent the agent whose session is assembled.
+ * @param {() => object | undefined} [getPlanMode] host-plane planMode reader.
+ * @param {() => object | undefined} [getSessionProjections] projection service reader.
+ * @returns {boolean} whether plan mode is active for this step's assembly.
+ */
+export function readPlanModeActive(agent, getPlanMode, getSessionProjections) {
+  if (agent === undefined || agent === null) return false;
+  // 1. The agent-scoped planMode instance: `get()` returns the logged state
+  //    plus a pending selection whose boolean is the selected direction.
+  try {
+    const scoped = agent.ctx?.get?.('planMode');
+    if (scoped !== undefined && scoped !== null && typeof scoped.get === 'function') {
+      const state = scoped.get(agent);
+      if (state !== undefined && state !== null && typeof state === 'object' && typeof state.active === 'boolean') {
+        return state.pending === undefined ? state.active : state.pending;
+      }
+    }
+  } catch {
+    // Fall through to the next source.
+  }
+  // 2. The host-plane planMode instance.
+  try {
+    const host = typeof getPlanMode === 'function' ? getPlanMode() : undefined;
+    if (host !== undefined && host !== null && typeof host.get === 'function') {
+      const state = host.get(agent);
+      if (state !== undefined && state !== null && typeof state === 'object' && typeof state.active === 'boolean') {
+        return state.pending === undefined ? state.active : state.pending;
+      }
+    }
+  } catch {
+    // Fall through to the next source.
+  }
+  // 3. The shared `plan` projection's cropped view { active, pending }. The
+  //    pending direction is not exposed here, so a pending selection counts as
+  //    active; by assembly time the pre-step has already applied pending
+  //    selections, which makes this equivalent to the native section's gate.
+  try {
+    const projections = typeof getSessionProjections === 'function' ? getSessionProjections() : undefined;
+    const session = agent?.session;
+    if (projections !== undefined && projections !== null && session !== undefined && typeof projections.snapshot === 'function') {
+      const state = projections.snapshot(session, ['plan'])?.values?.plan;
+      if (state !== undefined && state !== null && typeof state === 'object' && typeof state.active === 'boolean') {
+        return state.active === true || state.pending === true;
+      }
+    }
+  } catch {
+    // No usable plan state anywhere; treat the step as outside plan mode.
+  }
+  return false;
+}
+
+/**
  * Register the section right after the native plan policy.
  *
  * @param {object} options
  * @param {object} options.systemPrompt the Host `systemPrompt` service.
- * @param {() => object | undefined} options.getPlanMode optional `planMode` reader.
+ * @param {() => object | undefined} options.getPlanMode optional host-plane `planMode` reader.
+ * @param {() => object | undefined} [options.getSessionProjections] optional projection service reader.
  * @param {() => object | undefined} options.getConfig optional live plugin config reader.
  * @returns the Cordis effect disposer.
  */
-export function registerPlanEvidenceSection({ systemPrompt, getPlanMode, getConfig }) {
+export function registerPlanEvidenceSection({ systemPrompt, getPlanMode, getSessionProjections, getConfig }) {
   let order = PLAN_EVIDENCE_ORDER_FALLBACK;
   try {
     const resolved = typeof systemPrompt.getSectionOrder === 'function'
@@ -174,12 +239,11 @@ export function registerPlanEvidenceSection({ systemPrompt, getPlanMode, getConf
         } catch {
           config = undefined;
         }
-        return planEvidenceText(
-          getPlanMode(),
-          context?.agent,
-          readBrainstormingEnabled(config),
-          readUnlimitedBudgetEnabled(config),
-        );
+        if (!readPlanModeActive(context?.agent, getPlanMode, getSessionProjections)) return '';
+        return composePlanGuidance({
+          brainstorming: readBrainstormingEnabled(config),
+          unlimitedBudget: readUnlimitedBudgetEnabled(config),
+        });
       } catch {
         return '';
       }

@@ -13,6 +13,7 @@ export function apply(ctx, config) {
   ctx.inject(['systemPrompt'], (scope) => registerPlanEvidenceSection({
     systemPrompt: scope.systemPrompt,
     getPlanMode: () => ctx.get('planMode'),
+    getSessionProjections: () => ctx.get('sessionProjections'),
     getConfig: () => config,
   }));
 

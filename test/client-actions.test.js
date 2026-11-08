@@ -52,7 +52,26 @@ test('buildPlanExecutionPrompt includes the intro, budget reminder, and complete
   ));
   assert.match(prompt, /^INTRO\n\nToken budget: unlimited\./);
   assert.match(prompt, /Do not skimp on tokens/);
-  assert.match(prompt, /<approved-plan>\n# Plan\n\nDo the work\.\n<\/approved-plan>$/);
+  assert.match(prompt, /<approved-plan>\n# Plan\n\nDo the work\.\n<\/approved-plan>\n\nPlan approved — plan mode exited; carry out the plan starting with your next step\.$/);
+});
+
+test('fresh execution prompts end with the canonical approved-plan handoff', () => {
+  const canonical = 'Plan approved — plan mode exited; carry out the plan starting with your next step.';
+  assert.equal(actions.PLAN_APPROVED_HANDOFF, canonical);
+  const t = (key) => (key === 'clear.promptIntro' ? 'INTRO' : key);
+
+  const legacy = actions.buildPlanExecutionPrompt('# Plan', t, false);
+  assert.equal(legacy, `INTRO\n\n<approved-plan>\n# Plan\n</approved-plan>\n\n${canonical}`);
+
+  const composed = actions.composeFreshPrompt({
+    plan: '# Plan',
+    t,
+    presetId: 'standard',
+    instructions: ['keep this instruction'],
+    switches: { unlimitedBudget: false, includeOriginalInstructions: false, includeMinimalContext: false },
+  });
+  assert.ok(composed.endsWith(`\n\n${canonical}`));
+  assert.equal(composed.split(canonical).length - 1, 1);
 });
 
 test('buildPlanExecutionPrompt omits the budget reminder when the switch is off', () => {
@@ -298,7 +317,7 @@ test('buildPlanExecutionPrompt omits empty optional blocks', () => {
   assert.equal(prompt.includes('plan-mode-user-instructions'), false);
   assert.equal(prompt.includes('fresh-session-context'), false);
   assert.match(prompt, /^INTRO\n\nToken budget: unlimited\./);
-  assert.match(prompt, /<approved-plan>\n# Plan\n<\/approved-plan>$/);
+  assert.match(prompt, /<approved-plan>\n# Plan\n<\/approved-plan>\n\nPlan approved — plan mode exited; carry out the plan starting with your next step\.$/);
 });
 
 test('composeFreshPrompt includes the minimal runtime context only for the minimal preset', () => {
@@ -480,7 +499,7 @@ test('createFreshExecution composes the fresh prompt and keeps the existing sess
   assert.match(text, /\/tmp\/project/);
   assert.match(text, /<plan-mode-user-instructions>/);
   assert.match(text, /original request/);
-  assert.match(text, /<approved-plan>\n# Plan\nDo it\.\n<\/approved-plan>$/);
+  assert.match(text, /<approved-plan>\n# Plan\nDo it\.\n<\/approved-plan>\n\nPlan approved — plan mode exited; carry out the plan starting with your next step\.$/);
   assert.equal(text.includes('Token budget: unlimited'), false);
 });
 
@@ -637,7 +656,7 @@ test('FRESH_PROMPT_WARN_CHARS is the frozen preview threshold', () => {
   assert.equal(actions.FRESH_PROMPT_WARN_CHARS, 32000);
 });
 
-test('describeFreshPrompt keeps five ordered blocks whose chars sum to the text length', () => {
+test('describeFreshPrompt keeps six ordered blocks whose chars sum to the text length', () => {
   const plan = '# Plan\n\nExecute the approved work.';
   const instructions = ['first instruction', '   ', 'second instruction', ''];
   const runtimeFacts = { system: 'macOS (MacIntel)', time: '2026-10-27T22:30:00+08:00[Asia/Shanghai]' };
@@ -670,7 +689,7 @@ test('describeFreshPrompt keeps five ordered blocks whose chars sum to the text 
     assert.equal(described.text, actions.composeFreshPrompt(input));
 
     assert.deepEqual(described.blocks.map((block) => block.id), [
-      'intro', 'budget', 'runtime', 'instructions', 'plan',
+      'intro', 'budget', 'runtime', 'instructions', 'plan', 'approved',
     ]);
     assert.deepEqual(described.blocks.map((block) => block.titleKey), [
       'preview.block.intro',
@@ -678,18 +697,20 @@ test('describeFreshPrompt keeps five ordered blocks whose chars sum to the text 
       'preview.block.runtime',
       'preview.block.instructions',
       'preview.block.plan',
+      'preview.block.approved',
     ]);
 
-    const [intro, budgetBlock, runtime, instructionBlock, planBlock] = described.blocks;
+    const [intro, budgetBlock, runtime, instructionBlock, planBlock, handoffBlock] = described.blocks;
     const runtimeIncluded = switches.includeMinimalContext && presetId === 'minimal';
     assert.equal(intro.included, true);
     assert.equal(planBlock.included, true);
+    assert.equal(handoffBlock.included, true);
     assert.equal(budgetBlock.included, switches.unlimitedBudget);
     assert.equal(runtime.included, runtimeIncluded);
     assert.equal(instructionBlock.included, switches.includeOriginalInstructions);
     assert.equal(instructionBlock.count, switches.includeOriginalInstructions ? 2 : 0);
     assert.equal('count' in instructionBlock, true);
-    for (const block of [intro, budgetBlock, runtime, planBlock]) assert.equal('count' in block, false);
+    for (const block of [intro, budgetBlock, runtime, planBlock, handoffBlock]) assert.equal('count' in block, false);
 
     assert.equal(described.instructionCount, 2);
     assert.equal(described.instructionChars, 'first instruction'.length + 'second instruction'.length);
@@ -722,6 +743,9 @@ test('describeFreshPrompt keeps five ordered blocks whose chars sum to the text 
       assert.equal(instructionBlock.chars, 0);
     }
     assert.equal(planBlock.chars, `<approved-plan>\n${plan}\n</approved-plan>`.length);
+    const handoff = `\n\n${actions.PLAN_APPROVED_HANDOFF}`;
+    assert.equal(handoffBlock.chars, handoff.length);
+    assert.ok(described.text.endsWith(handoff));
   }
 });
 
@@ -1221,6 +1245,27 @@ test('runCompactCommand keeps the raw host failure text for localization', async
   assert.deepEqual(emptyOutcome, { ok: false, message: '', raw: '' });
 });
 
+// ---------------------------------------------------------------- approve ----
+
+test('approveReview sends only the native approval answer', async () => {
+  const answered = [];
+  let dismissed = false;
+  await actions.approveReview({
+    pending: {
+      snapshot: () => ({ channel: 'rpc' }),
+      answer: async (payload) => {
+        answered.push(payload);
+      },
+      dismiss: async () => {
+        dismissed = true;
+      },
+    },
+    review: { id: 'plan-review', approve: { label: 'Approve' } },
+  });
+  assert.deepEqual(answered, [{ answers: [{ id: 'plan-review', selected: ['Approve'] }] }]);
+  assert.equal(dismissed, true);
+});
+
 // ---------------------------------------------------------------- dismiss ----
 
 test('dismissReview dismisses the pending plan review like the native Discuss action', async () => {
@@ -1716,5 +1761,5 @@ test('createActions.createFreshExecution forwards this-run options and the bound
   assert.equal(text.includes('Token budget: unlimited'), false);
   assert.equal(text.includes('<fresh-session-context>'), false);
   assert.equal(text.includes('<plan-mode-user-instructions>'), false);
-  assert.match(text, /<approved-plan>\n# Plan\n<\/approved-plan>$/);
+  assert.match(text, /<approved-plan>\n# Plan\n<\/approved-plan>\n\nPlan approved — plan mode exited; carry out the plan starting with your next step\.$/);
 });
