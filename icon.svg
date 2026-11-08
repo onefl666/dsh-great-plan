@@ -1,17 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
   <defs>
-    <linearGradient id="gpPlanBg" x1="0" y1="0" x2="1" y2="1">
+    <linearGradient id="gpFlowBg" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#2f81f7"/>
       <stop offset="1" stop-color="#1b4fbf"/>
     </linearGradient>
-    <linearGradient id="gpPlanSpark" x1="0" y1="0" x2="1" y2="1">
+    <linearGradient id="gpFlowDone" x1="39" y1="18" x2="54" y2="45" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#ffd66b"/>
       <stop offset="1" stop-color="#ff9f43"/>
     </linearGradient>
   </defs>
-  <rect x="4" y="4" width="56" height="56" rx="14" fill="url(#gpPlanBg)"/>
-  <rect x="18" y="14" width="28" height="36" rx="5" fill="#ffffff" opacity="0.96"/>
-  <rect x="24" y="11" width="16" height="8" rx="3" fill="#dbeafe"/>
-  <path d="M24 26h16M24 32h16M24 38h10" stroke="#1f6feb" stroke-width="3" stroke-linecap="round"/>
-  <path d="M46 33l2.4 5.1 5.6.6-4.2 3.7 1.2 5.5-5-2.9-5 2.9 1.2-5.5-4.2-3.7 5.6-.6L46 33z" fill="url(#gpPlanSpark)"/>
+  <rect x="4" y="4" width="56" height="56" rx="16" fill="url(#gpFlowBg)"/>
+  <path d="M18 42V34c0-5.5 4.5-10 10-10h9" fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round"/>
+  <path d="M33 24h8l-4.5-4.5M41 24l-4.5 4.5" fill="none" stroke="#ffffff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="12" y="36" width="12" height="12" rx="3.5" fill="#ffffff"/>
+  <rect x="22" y="18" width="12" height="12" rx="3.5" fill="#ffffff" opacity="0.96"/>
+  <circle cx="46" cy="40" r="10" fill="url(#gpFlowDone)"/>
+  <path d="m40.5 40 3.6 3.6 7.3-8" fill="none" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

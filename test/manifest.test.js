@@ -37,6 +37,7 @@ test('locale metadata is present in both languages', () => {
 
 test('icon is present and small enough', () => {
   const icon = new URL('../icon.svg', import.meta.url);
+  assert.equal(packageJson.icon, './icon.svg');
   assert.ok(existsSync(icon));
   assert.ok(statSync(icon).size < 256 * 1024);
 });

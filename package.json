@@ -13,6 +13,7 @@
   },
   "type": "module",
   "description": "Choose the model and reasoning effort, then execute, compact-and-execute, or start fresh with a reviewed plan.",
+  "icon": "./icon.svg",
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
