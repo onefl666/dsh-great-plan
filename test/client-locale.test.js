@@ -21,7 +21,7 @@ await import('../client.actions.js');
  */
 function createPlugin() {
   const entry = registry.get('entry');
-  assert.equal(entry.id, '@local/dsh-great-plan');
+  assert.equal(entry.id, '@onefl666/dsh-great-plan');
   return entry.factory(() => {
     throw new Error('client.js must not require a module synchronously');
   });
@@ -108,7 +108,7 @@ function placeholdersOf(value) {
 
 test('the Client entry exposes both dictionaries through its test surface', () => {
   const plugin = createPlugin();
-  assert.equal(registry.get('entry').id, '@local/dsh-great-plan');
+  assert.equal(registry.get('entry').id, '@onefl666/dsh-great-plan');
   assert.ok(plugin.testSurface, 'testSurface must be exposed by the entry factory');
   const { dictionaries } = plugin.testSurface;
   assert.ok(dictionaries, 'testSurface must expose dictionaries');
@@ -176,7 +176,7 @@ test('the test surface declares the three chunk load waves', () => {
 function createActionsChunk() {
   const actionRegistration = registry.get('client.actions.js');
   assert.ok(actionRegistration, 'client.actions.js must register through the module loader');
-  assert.equal(actionRegistration.id, '@local/dsh-great-plan');
+  assert.equal(actionRegistration.id, '@onefl666/dsh-great-plan');
   return actionRegistration.factory(() => {
     throw new Error('client.actions.js must not require a module');
   });

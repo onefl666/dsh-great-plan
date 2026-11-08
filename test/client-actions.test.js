@@ -23,7 +23,7 @@ const actions = registration.factory(() => {
 });
 
 test('client actions chunk registers under the package id', () => {
-  assert.equal(registration.id, '@local/dsh-great-plan');
+  assert.equal(registration.id, '@onefl666/dsh-great-plan');
   assert.equal(registration.chunk, 'client.actions.js');
 });
 

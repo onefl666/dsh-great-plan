@@ -30,12 +30,12 @@ function materialize(fileName) {
   const require = (spec) => {
     if (spec === 'react') return fakeReact;
     if (spec === 'react-dom') return fakeReactDom;
-    if (spec === '@local/dsh-great-plan/client.ui.js') return modules['client.ui.js'];
-    if (spec === '@local/dsh-great-plan/client.settings.js') return modules['client.settings.js'];
-    if (spec === '@local/dsh-great-plan/client.model.js') return modules['client.model.js'];
-    if (spec === '@local/dsh-great-plan/client.preset.js') return modules['client.preset.js'];
-    if (spec === '@local/dsh-great-plan/client.actions.js') return modules['client.actions.js'];
-    if (spec === '@local/dsh-great-plan/client.panel.js') return modules['client.panel.js'];
+    if (spec === '@onefl666/dsh-great-plan/client.ui.js') return modules['client.ui.js'];
+    if (spec === '@onefl666/dsh-great-plan/client.settings.js') return modules['client.settings.js'];
+    if (spec === '@onefl666/dsh-great-plan/client.model.js') return modules['client.model.js'];
+    if (spec === '@onefl666/dsh-great-plan/client.preset.js') return modules['client.preset.js'];
+    if (spec === '@onefl666/dsh-great-plan/client.actions.js') return modules['client.actions.js'];
+    if (spec === '@onefl666/dsh-great-plan/client.panel.js') return modules['client.panel.js'];
     throw new Error(`unexpected require: ${spec}`);
   };
   modules[fileName] = registration.factory(require);
@@ -98,7 +98,7 @@ function createLoadTracker() {
 
 function createPlugin(options = {}) {
   const entry = registry.get('entry');
-  assert.equal(entry.id, '@local/dsh-great-plan');
+  assert.equal(entry.id, '@onefl666/dsh-great-plan');
   const tracker = options.tracker;
   const require = () => {
     throw new Error('the entry must use require.async for package chunks');

@@ -78,11 +78,11 @@ const fakeUi = {
 
 await import('../client.model.js');
 const registration = registry.get('client.model.js');
-assert.equal(registration.id, '@local/dsh-great-plan');
+assert.equal(registration.id, '@onefl666/dsh-great-plan');
 
 const model = registration.factory((spec) => {
   if (spec === 'react') return fakeReact;
-  if (spec === '@local/dsh-great-plan/client.ui.js') return fakeUi;
+  if (spec === '@onefl666/dsh-great-plan/client.ui.js') return fakeUi;
   throw new Error(`unexpected require: ${spec}`);
 });
 
@@ -546,7 +546,7 @@ const presetRegistration = registry.get('client.preset.js');
 
 const preset = presetRegistration.factory((spec) => {
   if (spec === 'react') return fakeReact;
-  if (spec === '@local/dsh-great-plan/client.ui.js') return fakeUi;
+  if (spec === '@onefl666/dsh-great-plan/client.ui.js') return fakeUi;
   throw new Error(`unexpected require: ${spec}`);
 });
 
@@ -556,7 +556,7 @@ function renderPresetOptions(state, props = {}) {
 }
 
 test('the preset chunk registers and keeps its export surface', () => {
-  assert.equal(presetRegistration.id, '@local/dsh-great-plan');
+  assert.equal(presetRegistration.id, '@onefl666/dsh-great-plan');
   assert.equal(presetRegistration.chunk, 'client.preset.js');
   for (const name of ['createPresetStore', 'usePresetState', 'presetDisplay', 'presetDescription', 'defaultPresetId', 'PresetOptions']) {
     assert.equal(typeof preset[name], 'function', `${name} must stay exported`);

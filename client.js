@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-  id: '@local/dsh-great-plan',
+  id: '@onefl666/dsh-great-plan',
   factory(require) {
     const NS = 'great-plan';
 

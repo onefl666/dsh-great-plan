@@ -92,11 +92,11 @@ const fakeUi = {
 
 await import('../client.settings.js');
 const registration = registry.get('client.settings.js');
-assert.equal(registration.id, '@local/dsh-great-plan');
+assert.equal(registration.id, '@onefl666/dsh-great-plan');
 
 const settings = registration.factory((spec) => {
   if (spec === 'react') return fakeReact;
-  if (spec === '@local/dsh-great-plan/client.ui.js') return fakeUi;
+  if (spec === '@onefl666/dsh-great-plan/client.ui.js') return fakeUi;
   throw new Error(`unexpected require: ${spec}`);
 });
 

@@ -1,13 +1,13 @@
 window.__ModuleLoader__.load({
-  id: '@local/dsh-great-plan',
+  id: '@onefl666/dsh-great-plan',
   chunk: 'client.panel.js',
   factory(require) {
     const React = require('react');
     const h = React.createElement;
-    const ui = require('@local/dsh-great-plan/client.ui.js');
-    const model = require('@local/dsh-great-plan/client.model.js');
-    const preset = require('@local/dsh-great-plan/client.preset.js');
-    const actionHelpers = require('@local/dsh-great-plan/client.actions.js');
+    const ui = require('@onefl666/dsh-great-plan/client.ui.js');
+    const model = require('@onefl666/dsh-great-plan/client.model.js');
+    const preset = require('@onefl666/dsh-great-plan/client.preset.js');
+    const actionHelpers = require('@onefl666/dsh-great-plan/client.actions.js');
 
     const { useEffect, useMemo, useRef, useState } = React;
 

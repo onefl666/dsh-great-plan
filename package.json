@@ -1,8 +1,20 @@
 {
-  "name": "@local/dsh-great-plan",
-  "version": "0.4.0",
-  "private": true,
+  "name": "@onefl666/dsh-great-plan",
+  "version": "0.5.0",
   "license": "MIT",
+  "author": "onefl666",
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "dsh-bundle",
+    "plan-mode",
+    "agent",
+    "web-client"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "homepage": "https://github.com/onefl666/dsh-great-plan#readme",
   "repository": {
     "type": "git",
@@ -18,7 +30,8 @@
     ".": "./index.js",
     "./client": "./client.js",
     "./locale/*.json": "./locale/*.json",
-    "./icon": "./icon.svg"
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
   },
   "files": [
     "index.js",

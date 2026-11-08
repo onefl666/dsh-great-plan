@@ -5,7 +5,7 @@ import test from 'node:test';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
-const packageName = '@local/dsh-great-plan';
+const packageName = '@onefl666/dsh-great-plan';
 
 test('package manifest declares the Host bundle and the Client half', () => {
   assert.equal(packageJson.name, packageName);
@@ -22,7 +22,7 @@ test('package manifest declares the Host bundle and the Client half', () => {
 test('cordis patch inserts the Host row', () => {
   const patch = readFileSync(new URL('../cordis.patch.yml', import.meta.url), 'utf8');
   assert.match(patch, /id: great-plan/);
-  assert.match(patch, /@local\/dsh-great-plan/);
+  assert.ok(patch.includes(packageJson.name), 'bundle patch row name must equal the package name');
 });
 
 test('locale metadata is present in both languages', () => {
@@ -116,4 +116,49 @@ test('the Host entry exports Config plus apply and the Client orders the setting
 
   assert.ok(packageJson.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-settings'));
   assert.ok(packageJson.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-settings-general'));
+});
+
+test('package identity and publish metadata stay consistent', () => {
+  assert.equal(packageJson.name, packageName);
+  assert.equal(packageJson.private, undefined);
+  assert.equal(packageJson.publishConfig?.access, 'public');
+  assert.equal(packageJson.author, 'onefl666');
+  assert.equal(packageJson.license, 'MIT');
+  assert.ok(Array.isArray(packageJson.keywords) && packageJson.keywords.length >= 3, 'keywords must be present');
+  assert.equal(packageJson.exports['./package.json'], './package.json');
+  assert.match(packageJson.version, /^\d+\.\d+\.\d+$/);
+
+  for (const entry of [
+    'index.js',
+    'host/*.js',
+    'client.js',
+    'client.*.js',
+    'cordis.patch.yml',
+    'locale/*.json',
+    'icon.svg',
+    'README.md',
+    'README.zh-CN.md',
+    'LICENSE',
+  ]) {
+    assert.equal(packageJson.files.includes(entry), true, `files must ship ${entry}`);
+  }
+
+  // The browser module name is the package name: the entry and every chunk
+  // must register exactly that id, and package-qualified sibling requires must
+  // use it as the prefix. Other `id` values are business ids (slot, plan
+  // blocks), so match only the registration block.
+  const clientFiles = readdirSync(root).filter((name) => name === 'client.js' || (name.startsWith('client.') && name.endsWith('.js')));
+  assert.ok(clientFiles.length >= 7, 'expected the entry plus six chunks');
+  for (const file of clientFiles) {
+    const source = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
+    const registration = source.match(/window\.__ModuleLoader__\.load\(\{\s*id:\s*'([^']+)'/);
+    assert.ok(registration, `${file} must register through __ModuleLoader__.load`);
+    assert.equal(registration[1], packageName, `${file} must register the package name`);
+
+    const specs = [...source.matchAll(/require\('([^']+)'\)/g)].map((match) => match[1]);
+    for (const spec of specs) {
+      if (!spec.startsWith('@')) continue;
+      assert.ok(spec.startsWith(`${packageName}/client.`), `${file} requires an unexpected package: ${spec}`);
+    }
+  }
 });

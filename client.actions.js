@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-  id: '@local/dsh-great-plan',
+  id: '@onefl666/dsh-great-plan',
   chunk: 'client.actions.js',
   factory() {
     function messageOf(error) {

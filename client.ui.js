@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-  id: '@local/dsh-great-plan',
+  id: '@onefl666/dsh-great-plan',
   chunk: 'client.ui.js',
   factory(require) {
     const React = require('react');
@@ -7,7 +7,7 @@ window.__ModuleLoader__.load({
     const h = React.createElement;
     const { useEffect, useLayoutEffect, useRef, useState } = React;
 
-    const STYLE_ID = '@local/dsh-great-plan/ui.css';
+    const STYLE_ID = '@onefl666/dsh-great-plan/ui.css';
 
     const CSS = `
 .gp-trigger{font:inherit;color:inherit;background:none;border:0;padding:0;min-width:24px;min-height:24px;display:inline-flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap}
@@ -121,7 +121,7 @@ window.__ModuleLoader__.load({
       if (typeof document === 'undefined') return () => {};
       if (document.querySelector(`style[data-plugin-css="${STYLE_ID}"]`) !== null) return () => {};
       const style = document.createElement('style');
-      style.dataset.plugin = '@local/dsh-great-plan';
+      style.dataset.plugin = '@onefl666/dsh-great-plan';
       style.dataset.pluginCss = STYLE_ID;
       style.textContent = CSS;
       document.head.appendChild(style);

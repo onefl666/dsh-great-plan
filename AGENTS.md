@@ -1,7 +1,7 @@
 # AGENTS.md — Great Plan / 卓越计划
 
 Operational guide for AI agents in this repo. Verify with `bash tools/gate.sh` before claiming done.
-Last verified: 2026-11-08 (DSH 0.2.1-rc.5, bundled Node v24.21.0, 201/201 offline tests).
+Last verified: 2026-11-08 (DSH 0.2.2-rc.1 runtime, bundled Node v24.21.0, 202/202 offline tests; GUI checklist last run on 0.2.1-rc.5).
 
 ## Agent Rules
 
@@ -11,14 +11,14 @@ Last verified: 2026-11-08 (DSH 0.2.1-rc.5, bundled Node v24.21.0, 201/201 offlin
 - Behavior change → failing host test first (in `test/`), then implement until green. Behavior-preserving refactor → gate + existing tests.
 - Report outcomes honestly: paste failing gate/test output; never gloss over. A green gate proves parsing and host tests only — it does not prove the plugin works in the GUI.
 - Client changes are "done" only after the live manual checklist in **Gate** (or an explicit statement of which items you could not run). Never claim visual or behavioral success from tests, syntax checks, or installation alone.
-- Never write the profile's `package.json` or `cordis.patch.yml`, and don't run pnpm inside `$DSH_PROFILE_DIR`. Install/update through `plugin_manager` (`install_bundle`, target = this package directory).
+- Never write the profile's `package.json` or `cordis.patch.yml`, and don't run pnpm inside `$DSH_PROFILE_DIR`. Install/update through `plugin_manager` (`install_bundle`; target is this package directory for a local checkout, or the published package spec after release).
 - Restore user state after manual testing: close sessions you opened, revert temporary model/preset changes, don't leave renamed, archived, or extra sessions behind.
 - When a DSH Service method, Event, slot prop, or theme token is uncertain, inspect it (`cordis_inspect_query` `Service`/`Event`/`Slots`/`Theme`, or the owning package README) instead of guessing. The installed Harness is the authority.
 - No new session event types and no new Agent tools: this plugin is composition only, built on existing `commands`/`sessionProjections`/`compaction`/session/model/settings services. Its four configuration fields are the plugin's own volatile Config switches backing the Settings page (see **Host Config and Settings page**).
 
 ## Project
 
-DSH Web plugin `@local/dsh-great-plan` ("Great Plan" / "卓越计划"). It adds an **Execution options** entry to the native plan-review card, lets the user choose model + reasoning effort, and offers three ways to execute the reviewed plan:
+DSH Web plugin `@onefl666/dsh-great-plan` ("Great Plan" / "卓越计划"). It adds an **Execution options** entry to the native plan-review card, lets the user choose model + reasoning effort, and offers three ways to execute the reviewed plan:
 
 - **Execute plan** — approve the pending review in the current session.
 - **Compact and execute** — run the Host command `/great-plan-compact` over the history before the pending plan, then approve. If compaction cannot run (no backend, empty history, failed request, cancellation) the plan is **not** approved automatically: the dialog keeps the failure visible and offers **Retry compaction / Execute anyway / Cancel**.
@@ -32,24 +32,37 @@ It also adds a **Great Plan** page (id `great-plan`) to the native Settings pane
 
 While plan mode is active (or pending-active) the Host registers the global prompt section `great-plan:plan-evidence`. An optional unlimited-token-budget reminder comes first, then the clarification/brainstorming guidance, then the evidence and executor handoff. The guidance asks the planner to clarify material ambiguities one question at a time, then act as Team Lead: use `spawn_teammate` for at least two parallel exploration teammates with distinct concrete scopes plus one separate planning teammate that drafts a candidate final plan, summarize its recommendation, relevant tradeoffs, and assumptions, and include background, an evidence chain, and an execution handoff. The main agent verifies the evidence and submits through the native review flow; the guidance is advisory, does not expose private step-by-step reasoning, and never replaces or copies the native plan policy; see **Architecture**.
 
-Names: package and Client module id `@local/dsh-great-plan`; profile bundle row id and Settings entry id `great-plan`; Config fields `injectBrainstormingPrompt`, `injectUnlimitedBudgetPrompt`, `includeOriginalUserInstructions`, and `includeMinimalRuntimeContext`; locale namespace `great-plan`; Host command `great-plan-compact`; display title `Great Plan` / `卓越计划`. Manifest display metadata lives in `locale/*.json`; runtime dictionaries live inline in `client.js`.
+Names: package and Client module id `@onefl666/dsh-great-plan`; profile bundle row id and Settings entry id `great-plan`; Config fields `injectBrainstormingPrompt`, `injectUnlimitedBudgetPrompt`, `includeOriginalUserInstructions`, and `includeMinimalRuntimeContext`; locale namespace `great-plan`; Host command `great-plan-compact`; display title `Great Plan` / `卓越计划`. Manifest display metadata lives in `locale/*.json`; runtime dictionaries live inline in `client.js`.
 
 ## Build & Install
 
 There is no build step, bundler, or installed dependency: Host files are plain ESM Node modules; Client files are plain browser-module factories served as-is (see `dsh-client-modules`). Editing the workspace edits the installed plugin because the active profile links this directory:
 
 ```text
-$DSH_PROFILE_DIR/node_modules/@local/dsh-great-plan -> /Users/flyblue/myProject/dsh-great-plan
+$DSH_PROFILE_DIR/node_modules/@onefl666/dsh-great-plan -> /Users/flyblue/myProject/dsh-great-plan
 ```
 
 Bare `@deepseek-ai/*` imports in the Host half resolve to the running installation **only** because `package.json` lists them in `peerDependencies` (`@deepseek-ai/schemastery`, `@deepseek-ai/dsh-compaction`). DSH's runtime resolution routes a bare import from a linked root to the installation's copy only for peer-declared names; a linked package's `dependencies` are not installed, so an undeclared import resolves from the workspace and activation fails with `failed to import: … ERR_MODULE_NOT_FOUND`. `@deepseek-ai/dsh-*` peer ranges must also satisfy the running runtime version, or DSH's admission preflight disables the plugin; keep them as broad as the code allows.
 
-Reinstall (`plugin_manager` `install_bundle`, absolute package directory as target) only after changing package identity or the manifest; ordinary file edits need no reinstall.
+Reinstall (`plugin_manager` `install_bundle`; target is the absolute package directory for a local checkout, or the published package spec after release) only after changing package identity or the manifest; ordinary file edits need no reinstall. A registry install resolves the same way through the profile's `node_modules`.
 
 - **Host half** (`index.js`, `host/*.js`) is loaded by the DSH Host process as a Node module. Node caches modules, so **restart DSH** to load Host changes.
 - **Client half** (`client.js` + `client.*.js` chunks) is served on demand by `dsh-client-modules` and registered through `window.__ModuleLoader__`. The HMR transport polls the entry artifact (`client.js`) by mtime/ctime/size and reloads the plugin in open pages (default 500 ms). Editing only a chunk does **not** change the entry revision, so chunk-only edits can keep the old revision: touch `client.js` (bumps the revision), then reload the page; restart DSH if in doubt. A reload loses plugin React state; do not promise live reload without seeing it.
 - Check the browser console after each manual run: a crashing slot entry logs `slot entry crashed in '<slot>'`.
 - Authoritative DSH docs: the bundled `cordis-plugin-development` skill under the running installation (`.../dsh/node_modules/@deepseek-ai/dsh-agent-preset/skills/cordis-plugin-development/`; in Desktop it lives inside `app.asar`, so read it with the file-read tool, not shell), plus each package's `README.md` at its resolved `packageDir`.
+
+### Releasing (publish day only)
+
+The npm package is `@onefl666/dsh-great-plan`; `package.json` `version` is the release version. `private` must stay absent and `publishConfig.access` must stay `public` (`manifest.test.js` asserts both). Use the npm CLI found outside `PATH` and confirm the publisher owns the `@onefl666` scope; 2FA may prompt:
+
+```bash
+DSH_HOME=/Users/flyblue/.dsh bash tools/gate.sh
+/Users/flyblue/.dsh-tools/bin/npm pack --dry-run --json   # expect entryCount 21
+/Users/flyblue/.dsh-tools/bin/npm publish --access public
+/Users/flyblue/.dsh-tools/bin/npm view @onefl666/dsh-great-plan version
+```
+
+Create the matching `vX.Y.Z` tag only after a successful publish; never move an existing tag. `npm publish --dry-run` exits 0 even with `private: true` and when not logged in, so it is not a publishability or auth check.
 
 ## Gate (verification)
 
@@ -58,7 +71,7 @@ bash tools/gate.sh   # exit 0 = green
 ```
 
 - **G-SYNTAX** — `node --check` on `index.js`, every `host/*.js`, and every `client*.js` (entry + chunks).
-- **G-TEST** — `node --test test/*.test.js`; all **201** cases must pass (9 files). The offline tests never import `host/config.js` or link the real installation; the peer declarations that make the Host imports resolvable are asserted statically by `manifest.test.js`.
+- **G-TEST** — `node --test test/*.test.js`; all **202** cases must pass (9 files). The offline tests never import `host/config.js` or link the real installation; the peer declarations that make the Host imports resolvable are asserted statically by `manifest.test.js`.
 - The gate script uses `node` from `PATH`, else the DSH runtime node (`$DSH_HOME/dsh-runtimes/*/dependencies/node/bin/node`; on this machine `~/.dsh/dsh-runtimes/dsh-primary-runtime/dependencies/node/bin/node`, v24.21.0). There is no system `node` on this host.
 - Manual equivalent when `node` is on `PATH`: `node --test test/*.test.js` and `node --check ...`.
 - **Linked-root resolution check** (no GUI needed, run after touching `package.json` or Host imports): create a scratch DSH home under `/tmp` whose profile links this package and declares `@deepseek-ai/dsh-base`, `@deepseek-ai/dsh-web-app`, and this bundle, then run the installed CLI: `DSH_HOME=/tmp/<scratch> "<app>/Contents/Resources/runtime/cli/bin/dsh" --profile <name> --dump-config-schema`. The `great-plan` row must report `status: schema` with all four Config definitions (`injectBrainstormingPrompt`, `injectUnlimitedBudgetPrompt`, `includeOriginalUserInstructions`, `includeMinimalRuntimeContext`, each defaulting to `true` and marked volatile), and no `Cannot find package '@deepseek-ai/schemastery'` diagnostic may appear. Stock-bundle rows of the scratch profile may still report unrelated diagnostics; the scratch profile is a fixture — never point it at the real profile or write the profile's files.
@@ -96,7 +109,7 @@ Browser automation is not available here. If you cannot run the GUI, say exactly
 
 | File | Covers |
 |---|---|
-| `test/manifest.test.js` | Package manifest (bundle patch, Client declaration, exports, files, peer dependencies for the Host imports), locale metadata, icon, Client chunk naming, required delivery files, "no Harness Client package imports", Host entry exports. |
+| `test/manifest.test.js` | Package manifest (bundle patch, Client declaration, exports, files, peer dependencies for the Host imports), locale metadata, icon, Client chunk naming, required delivery files, "no Harness Client package imports", Host entry exports; publish metadata (no `private`, `publishConfig.access`, author/keywords, `./package.json` export, `files` coverage) and package-identity consistency (Client ModuleLoader ids and chunk require prefixes equal the package name). |
 | `test/plan-compaction.test.js` | `selectPlanCompactionRange` (balanced-edge snap, leading system skip, pending-plan exclusion, `exit_plan_mode` tool-call precondition including other tool calls and missing names, overridable tool name, `empty`/`no-review`) and `createCompactCommand` (defensive non-string `rawInput`, success text, inactive plan, missing backend, missing pending review, exported static message table, `busy`/`changed`/`summary`/`commit`/`persistence`/`cancelled` code mapping, aborted signal, argument rejection). |
 | `test/plan-evidence.test.js` | Guidance content (including the tool-named Team-Lead workflow: `spawn_teammate`, at least two parallel exploration teammates, one separate planning teammate, verification and honest fallback); the three-part composition and every switch combination; the all-on constant fast path identity (`===`); `readBrainstormingEnabled`/`readUnlimitedBudgetEnabled` (boolean, volatile reference, missing/throwing); switches flipping text at read time; `readPlanModeActive` source priority (agent-scoped `planMode` over host `planMode` over the `plan` projection snapshot), pending-over-logged gating parity, and empty-text degradation (missing agents/services/state, throwing reads — including the regression where the host `planMode` read fails but the agent-scoped or projection state still renders); section registration name/order/fallback; `apply()` wiring (command, prompt section with both state readers, `settings.configure({ auto: false })`) with a fake `ctx`/`inject`. |
 | `test/client-actions.test.js` | Chunk registration; `composeFreshTitle`; `buildPlanExecutionPrompt` (byte-identical to the shared assembler); `describeFreshPrompt` matrix (six ordered blocks, chars sum to total, included flags, oversized boundary at 32000/32001, 50k non-truncation, text identity with `composeFreshPrompt`); the canonical approval-handoff suffix in all assembled messages; `planPreviewText`; `ActionError`/`describeActionError`; plan-mode user-text collection; `readPlanModeInstructions` metadata/abort/page-cap/degradation; runtime facts/Intl cache; Minimal context; `composeFreshPrompt` switch/preset matrix; the 13-entry `COMPACT_MESSAGE_KEYS` cross-side mapping imported from `host/plan-compaction.js`; `runCompactCommand` result shapes/raw text; `approveReview` native-answer payload; `dismissReview`; `createFreshExecution` ordering, parallel create/instructions start, rename tolerance, stillPending/reviewGone, archive-on-failure, `.cleanupError`, instruction reuse, `cancelError`. |
@@ -196,7 +209,7 @@ trigger (only when pendingInteraction.kind === 'plan-review'; the dialog is moun
 | `locale/en.json`, `locale/zh.json` | Plugin listing `meta.title`/`meta.description` only — not runtime copy. |
 | `icon.svg` | Plugin icon (SVG, inside the package, < 256 KiB). |
 | `cordis.patch.yml` | Host bundle patch inserting row `great-plan`. |
-| `package.json` | Manifest: `exports`, `files`, `peerDependencies` (Host imports supplied by the installation), `dsh.bundle.patch`, `dsh.client`; version `0.4.0`. |
+| `package.json` | Manifest: `exports`, `files`, `peerDependencies` (Host imports supplied by the installation), `dsh.bundle.patch`, `dsh.client`, npm metadata (`publishConfig`, `author`, `keywords`); version `0.5.0`. |
 | `test/*.test.js` | Offline Node tests (see **Host Tests**). |
 | `tools/gate.sh` | Verification gate (see **Gate**). |
 | `.github/workflows/gate.yml` | CI: runs the gate on push and pull requests with Node 24. |
@@ -220,8 +233,8 @@ trigger (only when pendingInteraction.kind === 'plan-review'; the dialog is moun
 ## Sync Checklists
 
 **New Client chunk** (order matters):
-1. Add `client.<name>.js` at the package root with `window.__ModuleLoader__.load({ id: '@local/dsh-great-plan', chunk: 'client.<name>.js', factory })`.
-2. Add it to `CHUNK_WAVES` in `client.js` (a wave may hold it only if everything it requires synchronously materializes in an earlier wave or the same wave); siblings require it as `require('@local/dsh-great-plan/client.<name>.js')`.
+1. Add `client.<name>.js` at the package root with `window.__ModuleLoader__.load({ id: '@onefl666/dsh-great-plan', chunk: 'client.<name>.js', factory })`.
+2. Add it to `CHUNK_WAVES` in `client.js` (a wave may hold it only if everything it requires synchronously materializes in an earlier wave or the same wave); siblings require it as `require('@onefl666/dsh-great-plan/client.<name>.js')`.
 3. Update the fake module registries in `client-wiring.test.js`/`client-render.test.js` (and `client-actions.test.js` if materialized there); keep the chunk-naming manifest test and the three-wave wiring assertions green.
 4. Update "Project structure" in both READMEs (`README.md`, `README.zh-CN.md` 项目结构) and the Module Map above.
 
@@ -262,7 +275,7 @@ trigger (only when pendingInteraction.kind === 'plan-review'; the dialog is moun
 
 Frozen identifiers:
 
-- `@local/dsh-great-plan` — ModuleLoader id, Client chunk require prefix, profile link, and bundle row name. Renaming breaks the installed plugin and every browser module resolution.
+- `@onefl666/dsh-great-plan` — npm package name, ModuleLoader id, Client chunk require prefix, profile bundle row name. Renamed from `@local/dsh-great-plan` in 0.5.0; frozen after publication (renaming breaks installed profiles and every browser module resolution).
 - Client chunk file names `client.js`, `client.ui.js`, `client.settings.js`, `client.model.js`, `client.preset.js`, `client.actions.js`, `client.panel.js`. The `client.<name>.js` naming rule and load order are load-bearing. Settings slot cell `id: 'great-plan'` lives in the host-owned `settings.section` slot; Config fields `injectBrainstormingPrompt`, `injectUnlimitedBudgetPrompt`, `includeOriginalUserInstructions`, and `includeMinimalRuntimeContext` are the Settings page's storage keys.
 - Slot cell `id: 'great-plan-execute-options'`, `order: -2`; slot key `conversation.plan-review.actions` is host-owned — never rename or re-declare it.
 - Locale namespace `great-plan`; CSS prefix `gp-`; Host command `great-plan-compact`; `sessions.using` `source: 'greatPlan'`.
@@ -270,7 +283,7 @@ Frozen identifiers:
 - zh/en dictionary text is product copy: don't "improve" strings without a request.
 - `client.js` `CHUNK_WAVES` grouping (ui+actions → settings/model/preset → panel) and the test-only `testSurface` returned beside `inject`/`apply`. The grouping must respect synchronous sibling requires; `testSurface` must stay test-only (the Loader ignores it, but `apply` and chunks must not read it).
 
-Known limitations (0.4.0, as shipped):
+Known limitations (0.5.0, as shipped):
 
 - The model list has a simple case-insensitive substring search; the Composer model control remains the full picker and the two never share state. Selecting a model applies immediately and is saved as the default model by existing DSH behavior.
 - Compaction requires a composed backend and makes one summary model request. When it cannot run (unavailable backend, empty history, failed request, cancellation) the plan is **not** approved: the dialog keeps a persistent failure block with **Retry compaction / Execute anyway / Cancel**. The conversation's command result card stays English even in a Chinese UI (the Host command contract has no locale); the dialog copy is localized for the static host messages and falls back to English for dynamic `...: <detail>` failures.
@@ -287,13 +300,13 @@ Known limitations (0.4.0, as shipped):
 Debt and quirks (record, don't fix unless asked):
 
 - Runtime dictionaries are inline in `client.js` while `locale/*.json` carries only listing metadata. The duplication is intentional (browser bundle vs Host metadata); don't merge without a design change.
-- Tests use fake React and never mount real React; `client-render.test.js` has a tiny hook-mount harness for interaction flows but still runs no real effects, portal, or DOM. 201/201 is not behavioral coverage; the manual checklist remains the only GUI proof.
+- Tests use fake React and never mount real React; `client-render.test.js` has a tiny hook-mount harness for interaction flows but still runs no real effects, portal, or DOM. 202/202 is not behavioral coverage; the manual checklist remains the only GUI proof.
 - Client HMR keys off the `client.js` artifact only (mtime/ctime/size); chunk-only edits can serve a stale revision. Touch `client.js` or restart before judging browser output.
 - The Client returns a test-only `testSurface` from the entry factory. The DSH Loader ignores unknown factory-return keys (verified in `dsh-client-modules`: `register()` validates only `id`/`chunk`/`factory`), so this is safe, but keep it test-only; removing it means updating `client-locale`/`client-wiring` tests.
 - `@deepseek-ai/dsh-compaction` is imported dynamically and `@deepseek-ai/schemastery` statically in `host/config.js`; both are declared under `peerDependencies` and resolved to the DSH installation's copies by the runtime resolution (the offline tests cannot resolve them, so they never import `host/config.js`). The peer mapping is load-bearing: without it the import resolves from the workspace and plugin activation fails. A composition without compaction degrades to a command error plus the retry/proceed/cancel dialog; a Host where `host/config.js` cannot resolve fails the plugin load, which is why the config import stays in its own module.
 - This workspace became a git repository on 2026-10-24 (`origin` = `https://github.com/onefl666/dsh-great-plan`, branch `main`); history before that has no rollback. Don't commit or push unless asked.
 - The dialog renders through a React portal to `document.body` (existing pattern). Don't hand-write DOM outside components or add a second application root.
-- `0.4.0`, private local package; no lockfile and no `node_modules` in this repo.
+- `0.5.0`; no lockfile and no `node_modules` in this repo.
 
 ## Maintaining This File
 

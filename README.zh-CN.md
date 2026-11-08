@@ -33,7 +33,7 @@
 
 ## 安装
 
-通过 `plugin_manager` 的 `install_bundle` 安装本目录，target 为包目录的绝对路径。安装后插件在 Plugins 列表中显示为 **卓越计划**。
+npm 包名为 `@onefl666/dsh-great-plan`。通过 `plugin_manager` 的 `install_bundle` 安装已发布版本，target 用包 spec（例如 `@onefl666/dsh-great-plan@0.5.0`）；本地开发时改用包目录的绝对路径。安装后插件在 Plugins 列表中显示为 **卓越计划**。
 
 ## 使用
 
@@ -79,7 +79,7 @@
 bash tools/gate.sh
 ```
 
-gate 通过只说明语法与离线测试正常，不代表 GUI 行为正确。同一 gate 在 CI（`.github/workflows/gate.yml`，Node 24）中随 push 与 pull request 运行。修改 Host 后需重启 DSH；修改 Client 后 touch `client.js` 并刷新页面。架构、GUI 手工清单与约定见 [AGENTS.md](AGENTS.md)。
+gate 通过只说明语法与离线测试正常，不代表 GUI 行为正确。同一 gate 在 CI（`.github/workflows/gate.yml`，Node 24）中随 push 与 pull request 运行。修改 Host 后需重启 DSH；修改 Client 后 touch `client.js` 并刷新页面。架构、GUI 手工清单与约定见 [AGENTS.md](https://github.com/onefl666/dsh-great-plan/blob/main/AGENTS.md)。
 
 ## 项目结构
 
@@ -91,8 +91,10 @@ gate 通过只说明语法与离线测试正常，不代表 GUI 行为正确。�
 | `test/`、`tools/gate.sh` | 离线测试与验证 gate |
 | `.github/workflows/gate.yml` | CI：push 与 pull request 时运行 gate |
 
-详见 [AGENTS.md](AGENTS.md) 的 Module Map。
+npm 包只包含 `index.js`、`host/`、`client*.js`、`cordis.patch.yml`、`locale/`、`icon.svg`、两个 README 与 `LICENSE`；`test/`、`tools/`、`.github/`、`AGENTS.md` 仅存在于仓库。
+
+详见 [AGENTS.md](https://github.com/onefl666/dsh-great-plan/blob/main/AGENTS.md) 的 Module Map。
 
 ## 许可
 
-[MIT](LICENSE) © 2026 onefl666。包仍为 `"private": true`，不会发布到 npm。
+[MIT](LICENSE) © 2026 onefl666。npm 包名：`@onefl666/dsh-great-plan`。

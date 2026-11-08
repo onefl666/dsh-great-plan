@@ -33,7 +33,7 @@ The native **Approve**, **Request changes**, and **View full plan** controls are
 
 ## Installation
 
-Install this directory with `plugin_manager` `install_bundle`, using the absolute package directory as the target. The plugin then appears in the Plugins list as **Great Plan**.
+npm package name: `@onefl666/dsh-great-plan`. Install the published package with `plugin_manager` `install_bundle`, using the package spec as the target (for example `@onefl666/dsh-great-plan@0.5.0`). For a local checkout, use the absolute package directory as the target instead. The plugin then appears in the Plugins list as **Great Plan**.
 
 ## Usage
 
@@ -79,7 +79,7 @@ There is no build step or installed dependency. The Host half imports a few DSH 
 bash tools/gate.sh
 ```
 
-A green gate proves parsing and the offline tests only, not GUI behavior. The same gate runs in CI (`.github/workflows/gate.yml`, Node 24) on push and pull requests. Restart DSH after Host changes; touch `client.js` and reload the page after Client changes. Architecture, the manual GUI checklist, and conventions are in [AGENTS.md](AGENTS.md).
+A green gate proves parsing and the offline tests only, not GUI behavior. The same gate runs in CI (`.github/workflows/gate.yml`, Node 24) on push and pull requests. Restart DSH after Host changes; touch `client.js` and reload the page after Client changes. Architecture, the manual GUI checklist, and conventions are in [AGENTS.md](https://github.com/onefl666/dsh-great-plan/blob/main/AGENTS.md).
 
 ## Project structure
 
@@ -91,8 +91,10 @@ A green gate proves parsing and the offline tests only, not GUI behavior. The sa
 | `test/`, `tools/gate.sh` | Offline tests and the verification gate |
 | `.github/workflows/gate.yml` | CI: runs the gate on push and pull requests |
 
-See the Module Map in [AGENTS.md](AGENTS.md) for details.
+The npm package ships only `index.js`, `host/`, `client*.js`, `cordis.patch.yml`, `locale/`, `icon.svg`, the READMEs, and `LICENSE`; `test/`, `tools/`, `.github/`, and `AGENTS.md` are repository-only.
+
+See the Module Map in [AGENTS.md](https://github.com/onefl666/dsh-great-plan/blob/main/AGENTS.md) for details.
 
 ## License
 
-[MIT](LICENSE) © 2026 onefl666. The package stays `"private": true` and is not published to npm.
+[MIT](LICENSE) © 2026 onefl666. npm package name: `@onefl666/dsh-great-plan`.

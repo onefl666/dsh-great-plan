@@ -1,10 +1,10 @@
 window.__ModuleLoader__.load({
-  id: '@local/dsh-great-plan',
+  id: '@onefl666/dsh-great-plan',
   chunk: 'client.settings.js',
   factory(require) {
     const React = require('react');
     const h = React.createElement;
-    const ui = require('@local/dsh-great-plan/client.ui.js');
+    const ui = require('@onefl666/dsh-great-plan/client.ui.js');
 
     /** Config fields shared with the Host prompt section and the fresh-session prompt. */
     const FIELDS = {
