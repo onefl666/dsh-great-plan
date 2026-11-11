@@ -34,7 +34,7 @@
 
 ## 安装
 
-npm 包名为 `@onefl666/dsh-great-plan`。通过 `plugin_manager` 的 `install_bundle` 安装已发布版本，target 用包 spec（例如 `@onefl666/dsh-great-plan@0.5.0`）；本地开发时改用包目录的绝对路径。安装后插件在 Plugins 列表中显示为 **卓越计划**。
+npm 包名为 `@onefl666/dsh-great-plan`。通过 `plugin_manager` 的 `install_bundle` 安装已发布版本，target 用包 spec（例如 `@onefl666/dsh-great-plan@0.6.0`）；本地开发时改用包目录的绝对路径。安装后插件在 Plugins 列表中显示为 **卓越计划**。
 
 ## 使用
 

@@ -34,7 +34,7 @@ The native **Approve**, **Request changes**, and **View full plan** controls are
 
 ## Installation
 
-npm package name: `@onefl666/dsh-great-plan`. Install the published package with `plugin_manager` `install_bundle`, using the package spec as the target (for example `@onefl666/dsh-great-plan@0.5.0`). For a local checkout, use the absolute package directory as the target instead. The plugin then appears in the Plugins list as **Great Plan**.
+npm package name: `@onefl666/dsh-great-plan`. Install the published package with `plugin_manager` `install_bundle`, using the package spec as the target (for example `@onefl666/dsh-great-plan@0.6.0`). For a local checkout, use the absolute package directory as the target instead. The plugin then appears in the Plugins list as **Great Plan**.
 
 ## Usage
 
