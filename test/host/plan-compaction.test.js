@@ -8,11 +8,11 @@ import {
   MESSAGES,
   resolveCompactionService,
   USAGE,
-} from '../../host/plan-compaction.js';
+} from '../../lib/host/plan-compaction.js';
 import {
   EXIT_PLAN_MODE_TOOL as RANGE_EXIT_PLAN_MODE_TOOL,
   selectPlanCompactionRange,
-} from '../../host/plan-range.js';
+} from '../../lib/host/plan-range.js';
 
 function sessionWith(events) {
   const nodes = [...events.keys()];

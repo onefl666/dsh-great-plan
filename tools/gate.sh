@@ -40,7 +40,7 @@ fi
 echo "gate: node $("$NODE" --version) ($NODE)"
 
 echo 'gate: G-SYNTAX'
-for file in index.js host/*.js client*.js; do
+for file in lib/index.js lib/host/*.js lib/client*.js; do
   "$NODE" --check "$file"
 done
 

@@ -5,7 +5,7 @@ import {
   FAILURES as HOST_FAILURES,
   MESSAGES as HOST_MESSAGES,
   USAGE as HOST_USAGE,
-} from '../../host/plan-compaction.js';
+} from '../../lib/host/plan-compaction.js';
 
 let registration;
 globalThis.window = {
@@ -16,7 +16,7 @@ globalThis.window = {
   },
 };
 
-await import('../../client.actions.js');
+await import('../../lib/client.actions.js');
 
 const actions = registration.factory(() => {
   throw new Error('client.actions.js must not require a module');

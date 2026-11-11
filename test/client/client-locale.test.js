@@ -10,8 +10,8 @@ globalThis.window = {
   },
 };
 
-await import('../../client.js');
-await import('../../client.actions.js');
+await import('../../lib/client.js');
+await import('../../lib/client.actions.js');
 
 /**
  * Materialize the Client entry without running `apply`.

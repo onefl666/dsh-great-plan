@@ -90,7 +90,7 @@ const fakeUi = {
   Button: 'mock-button',
 };
 
-await import('../../client.settings.js');
+await import('../../lib/client.settings.js');
 const registration = registry.get('client.settings.js');
 assert.equal(registration.id, '@onefl666/dsh-great-plan');
 

@@ -76,7 +76,7 @@ const fakeUi = {
   Loading: 'mock-loading',
 };
 
-await import('../../client.model.js');
+await import('../../lib/client.model.js');
 const registration = registry.get('client.model.js');
 assert.equal(registration.id, '@onefl666/dsh-great-plan');
 
@@ -541,7 +541,7 @@ test('ModelRows renders the model row, the effort row only with reasoning metada
  * workstream: it now exposes radiogroup/radio semantics while keeping the
  * loading/error/unavailable/retry states.
  */
-await import('../../client.preset.js');
+await import('../../lib/client.preset.js');
 const presetRegistration = registry.get('client.preset.js');
 
 const preset = presetRegistration.factory((spec) => {

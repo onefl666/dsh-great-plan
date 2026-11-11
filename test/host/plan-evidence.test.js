@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { apply } from '../../host/apply.js';
+import { apply } from '../../lib/host/apply.js';
 import {
   PLAN_BRAINSTORMING_GUIDANCE,
   PLAN_EVIDENCE_GUIDANCE,
@@ -14,7 +14,7 @@ import {
   readPlanModeActive,
   readUnlimitedBudgetEnabled,
   registerPlanEvidenceSection,
-} from '../../host/plan-evidence.js';
+} from '../../lib/host/plan-evidence.js';
 
 const AGENT = { session: { id: 'session-1' } };
 

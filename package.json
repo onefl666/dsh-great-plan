@@ -24,20 +24,21 @@
     "url": "https://github.com/onefl666/dsh-great-plan/issues"
   },
   "type": "module",
+  "main": "lib/index.js",
   "description": "Choose the model and reasoning effort, then execute, compact-and-execute, or start fresh with a reviewed plan.",
   "icon": "./icon.svg",
   "exports": {
-    ".": "./index.js",
-    "./client": "./client.js",
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
     "./locale/*.json": "./locale/*.json",
     "./icon": "./icon.svg",
     "./package.json": "./package.json"
   },
   "files": [
-    "index.js",
-    "host/*.js",
-    "client.js",
-    "client.*.js",
+    "lib/index.js",
+    "lib/host/*.js",
+    "lib/client.js",
+    "lib/client.*.js",
     "cordis.patch.yml",
     "locale/*.json",
     "icon.svg",
