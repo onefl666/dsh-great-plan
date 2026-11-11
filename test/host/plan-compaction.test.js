@@ -467,3 +467,59 @@ test('an aborted signal reports cancellation even when the backend error has no 
   });
   assert.deepEqual(result, { kind: 'error', text: FAILURES.cancelled });
 });
+
+test('a failed lazy compaction-package load keeps its load detail', async () => {
+  const { deps } = commandDeps({
+    getBalancedAfter: async () => {
+      throw new Error('compaction package not installed');
+    },
+  });
+  const result = await createCompactCommand(deps).handler(invocation(standardEvents));
+  assert.equal(result.kind, 'error');
+  assert.ok(
+    result.text.startsWith('Compaction is unavailable because the compaction package could not be loaded:'),
+    result.text,
+  );
+  assert.ok(result.text.includes('compaction package not installed'), result.text);
+});
+
+test('an unreadable session surface is reported as a range-inspection failure', async () => {
+  const agent = {
+    session: {
+      surface: { nodes: [10, 20, 30, 50] },
+      eventAt() {
+        throw new Error('surface read exploded');
+      },
+    },
+  };
+  const result = await createCompactCommand(commandDeps().deps).handler({
+    rawInput: '',
+    agent,
+    signal: new AbortController().signal,
+  });
+  assert.equal(result.kind, 'error');
+  assert.ok(result.text.startsWith('Unable to inspect plan history:'), result.text);
+  assert.ok(result.text.includes('surface read exploded'), result.text);
+});
+
+test('malformed compaction success results fall back to zero counts', async () => {
+  const { deps } = commandDeps({
+    getCompaction: () => ({
+      compactRegion: async () => ({ shadowedSeqs: 'bad', shadowedTokenCount: Number.POSITIVE_INFINITY }),
+    }),
+  });
+  const result = await createCompactCommand(deps).handler(invocation(standardEvents));
+  assert.deepEqual(result, { kind: 'success', text: 'Compacted 0 history items (~0 tokens).' });
+});
+
+test('an empty session surface is reported as empty instead of inspecting history', async () => {
+  const emptySession = { surface: { nodes: [] }, eventAt: () => undefined };
+  assert.deepEqual(selectPlanCompactionRange(emptySession, () => true), { error: 'empty' });
+
+  const result = await createCompactCommand(commandDeps().deps).handler({
+    rawInput: '',
+    agent: { session: emptySession },
+    signal: new AbortController().signal,
+  });
+  assert.deepEqual(result, { kind: 'error', text: MESSAGES.empty });
+});

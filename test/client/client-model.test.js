@@ -67,6 +67,23 @@ const fakeUi = {
   cx: (...parts) => parts.filter(Boolean).join(' '),
   messageOf: (error) => (error instanceof Error ? error.message : String(error)),
   useStore: (store) => store.getSnapshot(),
+  createStore: (initial) => {
+    let value = initial;
+    const listeners = new Set();
+    return {
+      getSnapshot: () => value,
+      subscribe: (listener) => {
+        listeners.add(listener);
+        return () => {
+          listeners.delete(listener);
+        };
+      },
+      set: (next) => {
+        value = next;
+        for (const listener of [...listeners]) listener();
+      },
+    };
+  },
   ListRow: 'mock-list-row',
   SelectRow: 'mock-select-row',
   GroupHeading: 'mock-group-heading',
@@ -639,4 +656,163 @@ test('the preset label helpers keep their builtin names and default lookup', () 
     options: [{ id: 'standard' }, { id: 'minimal', isDefault: true }],
   }), 'minimal');
   assert.equal(preset.defaultPresetId({ options: [] }), undefined);
+});
+
+/*
+ * The preset store is the loading/error state machine behind the clear view
+ * and the preset sub-page. `ui.createStore` is faked above so these tests run
+ * without React and observe the exact snapshots the components subscribe to.
+ */
+function createPresetList(factory) {
+  const calls = [];
+  return {
+    calls,
+    ctx: {
+      remote: {
+        agentPresets: {
+          list: async () => {
+            calls.push('list');
+            return factory();
+          },
+        },
+      },
+    },
+  };
+}
+
+function deferredPresetList() {
+  let resolveList;
+  let rejectList;
+  const promise = new Promise((resolve, reject) => {
+    resolveList = resolve;
+    rejectList = reject;
+  });
+  return { promise, resolve: resolveList, reject: rejectList };
+}
+
+test('createPresetStore loads once and dedupes concurrent load calls', async () => {
+  const gate = deferredPresetList();
+  const { ctx, calls } = createPresetList(() => gate.promise);
+  const presetStore = preset.createPresetStore(ctx);
+
+  const first = presetStore.load();
+  const second = presetStore.load();
+  // `load` is async, so the returned wrappers differ; the dedupe contract is
+  // that only one RPC request is issued and both calls settle together.
+  assert.equal(calls.length, 1, 'only one RPC request may be in flight');
+  assert.deepEqual(presetStore.store.getSnapshot(), { status: 'loading', options: [], error: null });
+
+  gate.resolve({
+    ok: true,
+    value: { presets: [{ id: 'standard', name: 'Standard', description: 'Default preset', isDefault: true }] },
+  });
+  await Promise.all([first, second]);
+
+  assert.equal(calls.length, 1);
+  assert.deepEqual(presetStore.store.getSnapshot(), {
+    status: 'ready',
+    options: [{ id: 'standard', name: 'Standard', description: 'Default preset', isDefault: true }],
+    error: null,
+  });
+});
+
+test('createPresetStore short-circuits a ready store on a non-forced load', async () => {
+  const { ctx, calls } = createPresetList(() => ({
+    ok: true,
+    value: { presets: [{ id: 'standard', name: 'Standard', isDefault: true }] },
+  }));
+  const presetStore = preset.createPresetStore(ctx);
+
+  await presetStore.load();
+  assert.equal(calls.length, 1);
+  assert.equal(await presetStore.load(), undefined, 'a ready store skips the request entirely');
+  assert.equal(calls.length, 1);
+  assert.equal(presetStore.store.getSnapshot().status, 'ready');
+});
+
+test('createPresetStore force-reloads on load(true)', async () => {
+  const { ctx, calls } = createPresetList(() => ({
+    ok: true,
+    value: { presets: [{ id: 'standard', name: 'Standard', isDefault: true }] },
+  }));
+  const presetStore = preset.createPresetStore(ctx);
+
+  await presetStore.load();
+  await presetStore.load(true);
+
+  assert.equal(calls.length, 2, 'a forced load must request again');
+  assert.equal(presetStore.store.getSnapshot().status, 'ready');
+});
+
+test('createPresetStore reports the preset gateway as unavailable', async () => {
+  const { ctx } = createPresetList(() => ({
+    ok: false,
+    error: { code: 'gateway/invocation-unavailable', message: 'gateway is not composed' },
+  }));
+  const presetStore = preset.createPresetStore(ctx);
+
+  await presetStore.load();
+
+  assert.deepEqual(presetStore.store.getSnapshot(), { status: 'unavailable', options: [], error: null });
+});
+
+test('createPresetStore filters broken presets and preserves the default flag', async () => {
+  const { ctx } = createPresetList(() => ({
+    ok: true,
+    value: {
+      presets: [
+        { id: 'standard', name: 'Standard', description: 'Default preset', isDefault: true },
+        { id: 'minimal', name: 'Minimal', broken: 'missing agent preset file', isDefault: false },
+        { id: 'custom', isDefault: 1 },
+      ],
+    },
+  }));
+  const presetStore = preset.createPresetStore(ctx);
+
+  await presetStore.load();
+
+  assert.deepEqual(presetStore.store.getSnapshot(), {
+    status: 'ready',
+    options: [
+      { id: 'standard', name: 'Standard', description: 'Default preset', isDefault: true },
+      { id: 'custom', name: undefined, description: undefined, isDefault: false },
+    ],
+    error: null,
+  });
+  assert.equal(preset.defaultPresetId(presetStore.store.getSnapshot()), 'standard');
+});
+
+test('createPresetStore treats an empty preset list as unavailable', async () => {
+  const empty = createPresetList(() => ({ ok: true, value: { presets: [] } }));
+  const emptyStore = preset.createPresetStore(empty.ctx);
+  await emptyStore.load();
+  assert.deepEqual(emptyStore.store.getSnapshot(), { status: 'unavailable', options: [], error: null });
+
+  const missing = createPresetList(() => ({ ok: true, value: undefined }));
+  const missingStore = preset.createPresetStore(missing.ctx);
+  await missingStore.load();
+  assert.deepEqual(missingStore.store.getSnapshot(), { status: 'unavailable', options: [], error: null });
+});
+
+test('createPresetStore reports a thrown preset request as an error', async () => {
+  const { ctx } = createPresetList(() => {
+    throw new Error('the preset RPC is down');
+  });
+  const presetStore = preset.createPresetStore(ctx);
+
+  await presetStore.load();
+
+  assert.deepEqual(presetStore.store.getSnapshot(), {
+    status: 'error',
+    options: [],
+    error: 'the preset RPC is down',
+  });
+});
+
+test('createPresetStore treats a missing agent-presets capability as unavailable', async () => {
+  const presetStore = preset.createPresetStore({ remote: {} });
+
+  await presetStore.load();
+
+  assert.deepEqual(presetStore.store.getSnapshot(), { status: 'unavailable', options: [], error: null });
 });

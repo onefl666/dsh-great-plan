@@ -148,6 +148,7 @@ function createCtx({ configForms, registrations, deliverImmediately = true }) {
     select: async () => ({ ok: true, value: undefined }),
   };
   const injectCalls = [];
+  const effects = [];
   return {
     get() {
       // The entry must never read `configForms` eagerly: it is injected.
@@ -167,12 +168,14 @@ function createCtx({ configForms, registrations, deliverImmediately = true }) {
       }
     },
     injectCalls,
+    effects,
     locale: {
       register: () => () => {},
       bind: () => (key) => key,
     },
-    effect: (run) => {
+    effect: (run, label) => {
       const cleanup = run();
+      effects.push({ run, label, cleanup });
       return typeof cleanup === 'function' ? cleanup : () => {};
     },
     slots: {
@@ -340,4 +343,23 @@ test('the settings surface is not registered when configForms never arrives', as
   assert.equal(registrations[0].options.name, 'conversation.plan-review.actions');
   assert.equal(ctx.injectCalls.length, 1);
   assert.equal(ctx.injectCalls[0].callback.length, 1, 'the inject callback takes the scope');
+});
+
+test('apply registers the dictionary and stylesheet effects with disposers and frozen labels', async () => {
+  const plugin = createPlugin();
+  const registrations = [];
+  const ctx = createCtx({ configForms: undefined, registrations });
+
+  await plugin.apply(ctx);
+
+  assert.equal(ctx.effects.length, 2, 'the entry owns exactly two composition effects');
+  assert.deepEqual(
+    ctx.effects.map((effect) => effect.label),
+    ['great-plan: dictionaries', 'great-plan: styles'],
+  );
+  for (const effect of ctx.effects) {
+    assert.equal(typeof effect.run, 'function', `${effect.label} must register a run function`);
+    assert.equal(typeof effect.cleanup, 'function', `${effect.label} must return a disposer`);
+    assert.doesNotThrow(() => effect.cleanup());
+  }
 });

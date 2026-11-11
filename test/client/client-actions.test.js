@@ -1163,6 +1163,40 @@ test('every host-visible compact message maps to the frozen client locale key', 
   assert.equal(Object.keys(actions.COMPACT_MESSAGE_KEYS).length, COMPACT_MAPPING.length);
 });
 
+test('the compact mapping stays complete against every exported host static message', () => {
+  // Derived completeness: the client mirrors the host's USAGE, FAILURES and
+  // MESSAGES tables, so adding a static host message without its client
+  // mapping must fail here instead of silently falling back to English.
+  const hostStatic = [HOST_USAGE, ...Object.values(HOST_FAILURES), ...Object.values(HOST_MESSAGES)];
+  assert.equal(hostStatic.length, 12, 'the host static message table changed; update this cross-side test');
+  for (const message of hostStatic) {
+    assert.equal(typeof message, 'string');
+    assert.ok(
+      Object.prototype.hasOwnProperty.call(actions.COMPACT_MESSAGE_KEYS, message),
+      `host static message is not mapped: ${message}`,
+    );
+  }
+
+  const keys = Object.keys(actions.COMPACT_MESSAGE_KEYS);
+  // The client owns exactly one extra mapping: its own "command unavailable" text.
+  assert.equal(keys.length, hostStatic.length + 1);
+  assert.equal(actions.COMPACT_MESSAGE_KEYS[CLIENT_COMPACT_UNAVAILABLE], 'compact.error.unavailable');
+  assert.equal(new Set(keys).size, keys.length, 'host messages must be mapped once');
+  assert.equal(
+    new Set(Object.values(actions.COMPACT_MESSAGE_KEYS)).size,
+    keys.length,
+    'every host message must own a distinct locale key',
+  );
+  for (const key of Object.values(actions.COMPACT_MESSAGE_KEYS)) {
+    assert.match(key, /^compact\.error\./);
+  }
+
+  // The known 13 exact pairs remain the frozen contract (no key renames).
+  for (const [message, key] of COMPACT_MAPPING) {
+    assert.equal(actions.COMPACT_MESSAGE_KEYS[message], key);
+  }
+});
+
 test('describeCompactFailure localizes only exact host messages', () => {
   const t = (key) => `LOC:${key}`;
   for (const [message, key] of COMPACT_MAPPING) {
