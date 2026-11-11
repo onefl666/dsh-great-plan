@@ -46,22 +46,26 @@ test('composeFreshTitle stays within the title budget', () => {
   assert.ok(title.endsWith('…'));
 });
 
+/** A translator that answers every key in Chinese; model-facing text must ignore it. */
+const zhT = (key) => `中文译文（${key}）`;
+
+/** Matches CJK characters and full-width punctuation. */
+const CJK = /[　-〿㐀-鿿＀-￯]/;
+
 test('buildPlanExecutionPrompt includes the intro, budget reminder, and complete plan', () => {
-  const prompt = actions.buildPlanExecutionPrompt('# Plan\n\nDo the work.', (key) => (
-    key === 'clear.promptIntro' ? 'INTRO' : key
-  ));
-  assert.match(prompt, /^INTRO\n\nToken budget: unlimited\./);
-  assert.match(prompt, /Do not skimp on tokens/);
+  const prompt = actions.buildPlanExecutionPrompt('# Plan\n\nDo the work.', zhT);
+  assert.ok(prompt.startsWith(`${actions.FRESH_PROMPT_INTRO}\n\nToken budget: unlimited.`));
+  assert.match(prompt, /Never cut investigation, tool calls, or needed questions/);
   assert.match(prompt, /<approved-plan>\n# Plan\n\nDo the work\.\n<\/approved-plan>\n\nPlan approved — plan mode exited; carry out the plan starting with your next step\.$/);
 });
 
 test('fresh execution prompts end with the canonical approved-plan handoff', () => {
   const canonical = 'Plan approved — plan mode exited; carry out the plan starting with your next step.';
   assert.equal(actions.PLAN_APPROVED_HANDOFF, canonical);
-  const t = (key) => (key === 'clear.promptIntro' ? 'INTRO' : key);
+  const t = zhT;
 
   const legacy = actions.buildPlanExecutionPrompt('# Plan', t, false);
-  assert.equal(legacy, `INTRO\n\n<approved-plan>\n# Plan\n</approved-plan>\n\n${canonical}`);
+  assert.equal(legacy, `${actions.FRESH_PROMPT_INTRO}\n\n<approved-plan>\n# Plan\n</approved-plan>\n\n${canonical}`);
 
   const composed = actions.composeFreshPrompt({
     plan: '# Plan',
@@ -75,17 +79,56 @@ test('fresh execution prompts end with the canonical approved-plan handoff', () 
 });
 
 test('buildPlanExecutionPrompt omits the budget reminder when the switch is off', () => {
-  const prompt = actions.buildPlanExecutionPrompt('# Plan\n\nDo the work.', (key) => (
-    key === 'clear.promptIntro' ? 'INTRO' : key
-  ), false);
+  const prompt = actions.buildPlanExecutionPrompt('# Plan\n\nDo the work.', zhT, false);
   assert.equal(prompt.includes('Token budget: unlimited'), false);
-  assert.match(prompt, /^INTRO\n\n<approved-plan>/);
+  assert.ok(prompt.startsWith(`${actions.FRESH_PROMPT_INTRO}\n\n<approved-plan>`));
 });
 
 test('the fresh-session budget reminder has the same intent as the plan-mode one', () => {
-  assert.match(actions.UNLIMITED_BUDGET_REMINDER, /Token budget: unlimited/);
-  assert.match(actions.UNLIMITED_BUDGET_REMINDER, /tool calls/);
+  assert.match(actions.UNLIMITED_BUDGET_REMINDER, /^Token budget: unlimited\./);
+  assert.match(actions.UNLIMITED_BUDGET_REMINDER, /Never cut investigation, tool calls, or needed questions to save tokens/);
   assert.match(actions.UNLIMITED_BUDGET_REMINDER, /keep the final summary concise/);
+  for (const persona of ['DeepSeek', 'wealthy', 'stress-testing', 'spend freely']) {
+    assert.equal(actions.UNLIMITED_BUDGET_REMINDER.includes(persona), false, `${persona} must not be injected`);
+  }
+  assert.ok(actions.UNLIMITED_BUDGET_REMINDER.length < 160);
+});
+
+test('every fixed model-facing prompt constant is short English text', () => {
+  assert.equal(
+    actions.FRESH_PROMPT_INTRO,
+    'Execute the approved plan below in this fresh session. Do not re-plan or repeat its investigation: reuse its evidence, and first verify anything it marks as unverified or assumed.',
+  );
+  assert.equal(
+    actions.PLAN_MODE_INSTRUCTIONS_HEADING,
+    'User messages from plan mode, oldest first (context for the plan):',
+  );
+  for (const text of [
+    actions.FRESH_PROMPT_INTRO,
+    actions.UNLIMITED_BUDGET_REMINDER,
+    actions.PLAN_MODE_INSTRUCTIONS_HEADING,
+    actions.PLAN_APPROVED_HANDOFF,
+  ]) {
+    assert.equal(CJK.test(text), false, `${text} must be English`);
+  }
+});
+
+test('the composed fresh-session prompt stays English under a Chinese UI translator', () => {
+  const input = {
+    plan: '# Plan\n\nDo the work.',
+    t: zhT,
+    presetId: 'minimal',
+    instructions: ['first instruction', 'second instruction'],
+    workspaceDirectory: '/tmp/project',
+    runtimeFacts: { system: 'macOS (MacIntel)', time: '2026-10-27T22:30:00+08:00[Asia/Shanghai]' },
+    switches: { unlimitedBudget: true, includeOriginalInstructions: true, includeMinimalContext: true },
+  };
+  const composed = actions.composeFreshPrompt(input);
+  assert.equal(CJK.test(composed), false, composed);
+  assert.equal(actions.describeFreshPrompt(input).text, composed);
+  assert.ok(composed.startsWith(`${actions.FRESH_PROMPT_INTRO}\n\n${actions.UNLIMITED_BUDGET_REMINDER}\n\n<fresh-session-context>\n`));
+  assert.ok(composed.includes(`${actions.PLAN_MODE_INSTRUCTIONS_HEADING}\n\n<plan-mode-user-instructions>\n`));
+  assert.ok(composed.endsWith(`\n\n${actions.PLAN_APPROVED_HANDOFF}`));
 });
 
 test('buildPlanExecutionPrompt rejects an empty plan', () => {
@@ -291,40 +334,34 @@ test('readPlanModeInstructions degrades safely without a binding or when loading
 });
 
 test('buildPlanExecutionPrompt places instructions between the context and the approved plan', () => {
-  const t = (key) => {
-    if (key === 'clear.promptIntro') return 'INTRO';
-    if (key === 'clear.instructionsIntro') return 'INSTRUCTIONS';
-    return key;
-  };
-  const context = '<fresh-session-context>\nWorkspace directory: /tmp\n</fresh-session-context>';
-  const prompt = actions.buildPlanExecutionPrompt('# Plan\nDo it.', t, {
+  const heading = actions.PLAN_MODE_INSTRUCTIONS_HEADING;
+  const context = '<fresh-session-context>\nWorkspace: /tmp\n</fresh-session-context>';
+  const prompt = actions.buildPlanExecutionPrompt('# Plan\nDo it.', zhT, {
     unlimitedBudget: false,
     instructions: ['first', 'second'],
     runtimeContext: context,
   });
-  assert.match(prompt, /^INTRO\n\n<fresh-session-context>/);
-  assert.match(prompt, /INSTRUCTIONS\n\n<plan-mode-user-instructions>\nfirst\n\n---\n\nsecond\n<\/plan-mode-user-instructions>\n\n<approved-plan>/);
-  assert.ok(prompt.indexOf(context) < prompt.indexOf('INSTRUCTIONS'));
+  assert.ok(prompt.startsWith(`${actions.FRESH_PROMPT_INTRO}\n\n<fresh-session-context>`));
+  assert.ok(prompt.includes(`${heading}\n\n<plan-mode-user-instructions>\nfirst\n\n---\n\nsecond\n</plan-mode-user-instructions>\n\n<approved-plan>`));
+  assert.ok(prompt.indexOf(context) < prompt.indexOf(heading));
   assert.equal(prompt.includes('Token budget: unlimited'), false);
 });
 
 test('buildPlanExecutionPrompt omits empty optional blocks', () => {
-  const t = (key) => (key === 'clear.promptIntro' ? 'INTRO' : key);
-  const prompt = actions.buildPlanExecutionPrompt('# Plan', t, {
+  const prompt = actions.buildPlanExecutionPrompt('# Plan', zhT, {
     instructions: ['  ', ''],
     runtimeContext: '   ',
   });
   assert.equal(prompt.includes('plan-mode-user-instructions'), false);
   assert.equal(prompt.includes('fresh-session-context'), false);
-  assert.match(prompt, /^INTRO\n\nToken budget: unlimited\./);
+  assert.ok(prompt.startsWith(`${actions.FRESH_PROMPT_INTRO}\n\nToken budget: unlimited.`));
   assert.match(prompt, /<approved-plan>\n# Plan\n<\/approved-plan>\n\nPlan approved — plan mode exited; carry out the plan starting with your next step\.$/);
 });
 
 test('composeFreshPrompt includes the minimal runtime context only for the minimal preset', () => {
-  const t = (key, params) => (params === undefined ? key : `${key}:${JSON.stringify(params)}`);
   const base = {
     plan: '# Plan',
-    t,
+    t: zhT,
     instructions: ['original request'],
     workspaceDirectory: '/tmp/project',
     runtimeFacts: { system: 'macOS (MacIntel)', time: '2026-10-27T22:30:00+08:00[Asia/Shanghai]' },
@@ -332,8 +369,7 @@ test('composeFreshPrompt includes the minimal runtime context only for the minim
   };
   const minimal = actions.composeFreshPrompt({ ...base, presetId: 'minimal' });
   assert.match(minimal, /<fresh-session-context>/);
-  assert.match(minimal, /clear\.context\.workspace/);
-  assert.match(minimal, /\/tmp\/project/);
+  assert.match(minimal, /Workspace: \/tmp\/project/);
   assert.match(minimal, /macOS \(MacIntel\)/);
   assert.match(minimal, /2026-10-27T22:30:00\+08:00\[Asia\/Shanghai\]/);
   assert.match(minimal, /<plan-mode-user-instructions>/);
@@ -354,25 +390,27 @@ test('composeFreshPrompt includes the minimal runtime context only for the minim
   assert.equal(disabled.includes('Token budget: unlimited'), false);
 });
 
-test('buildMinimalRuntimeContext localizes fields and always keeps the cleared note', () => {
-  const t = (key, params) => `${key}:${JSON.stringify(params ?? {})}`;
+test('buildMinimalRuntimeContext renders fixed English labels, ignores t, and always keeps the fresh-session note', () => {
   const context = actions.buildMinimalRuntimeContext({
     workspaceDirectory: '/tmp/project',
     system: 'macOS',
     time: '2026-10-27T22:30:00+08:00[Asia/Shanghai]',
-  }, t);
-  assert.match(context, /^<fresh-session-context>\n/);
-  assert.match(context, /clear\.context\.workspace:{"path":"\/tmp\/project"}/);
-  assert.match(context, /clear\.context\.system:{"system":"macOS"}/);
-  assert.match(context, /clear\.context\.time:{"time":"2026-10-27T22:30:00\+08:00\[Asia\/Shanghai\]"}/);
-  assert.match(context, /clear\.context\.cleared:\{\}/);
-  assert.match(context, /<\/fresh-session-context>$/);
+  }, zhT);
+  assert.equal(
+    context,
+    '<fresh-session-context>\n'
+      + 'Workspace: /tmp/project\n'
+      + 'Platform: macOS\n'
+      + 'Time: 2026-10-27T22:30:00+08:00[Asia/Shanghai]\n'
+      + 'Fresh session: the previous conversation is not included.\n'
+      + '</fresh-session-context>',
+  );
 
-  const empty = actions.buildMinimalRuntimeContext({}, t);
-  assert.equal(empty.includes('clear.context.workspace'), false);
-  assert.equal(empty.includes('clear.context.system'), false);
-  assert.equal(empty.includes('clear.context.time'), false);
-  assert.match(empty, /clear\.context\.cleared/);
+  const empty = actions.buildMinimalRuntimeContext({});
+  assert.equal(
+    empty,
+    '<fresh-session-context>\nFresh session: the previous conversation is not included.\n</fresh-session-context>',
+  );
 });
 
 test('formatTimestamp renders the local wall time, offset, and IANA zone', () => {
@@ -513,11 +551,8 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
-const previewT = (key, params) => {
-  if (key === 'clear.promptIntro') return 'INTRO';
-  if (key === 'clear.instructionsIntro') return 'INSTR';
-  return params === undefined ? key : `${key}:${JSON.stringify(params)}`;
-};
+/** The panel's UI translator; the fresh prompt must not depend on it. */
+const previewT = (key, params) => (params === undefined ? `中文:${key}` : `中文:${key}:${JSON.stringify(params)}`);
 
 function freshExecutionHarness(options = {}) {
   const log = [];
@@ -722,21 +757,22 @@ test('describeFreshPrompt keeps six ordered blocks whose chars sum to the text l
     assert.equal(described.approxTokens, Math.ceil(described.totalChars / 3.5));
     assert.equal(described.oversized, described.totalChars > actions.FRESH_PROMPT_WARN_CHARS);
 
-    assert.equal(intro.chars, 'INTRO\n\n'.length);
+    assert.equal(intro.chars, `${actions.FRESH_PROMPT_INTRO}\n\n`.length);
+    assert.equal(CJK.test(described.text), false);
     assert.equal(budgetBlock.chars, switches.unlimitedBudget ? `${actions.UNLIMITED_BUDGET_REMINDER}\n\n`.length : 0);
     if (runtimeIncluded) {
       const context = actions.buildMinimalRuntimeContext({
         workspaceDirectory: '/tmp/project',
         system: runtimeFacts.system,
         time: runtimeFacts.time,
-      }, previewT);
+      });
       assert.equal(runtime.chars, `${context}\n\n`.length);
       assert.ok(described.text.includes(context));
     } else {
       assert.equal(runtime.chars, 0);
     }
     if (instructionBlock.included) {
-      const expected = `INSTR\n\n<${actions.PLAN_MODE_INSTRUCTIONS_TAG}>\nfirst instruction\n\n---\n\nsecond instruction\n</${actions.PLAN_MODE_INSTRUCTIONS_TAG}>\n\n`;
+      const expected = `${actions.PLAN_MODE_INSTRUCTIONS_HEADING}\n\n<${actions.PLAN_MODE_INSTRUCTIONS_TAG}>\nfirst instruction\n\n---\n\nsecond instruction\n</${actions.PLAN_MODE_INSTRUCTIONS_TAG}>\n\n`;
       assert.equal(instructionBlock.chars, expected.length);
       assert.ok(described.text.includes(expected));
     } else {
@@ -768,9 +804,8 @@ test('describeFreshPrompt text stays identical to buildPlanExecutionPrompt for t
 });
 
 test('describeFreshPrompt flags the oversized boundary at exactly the frozen threshold', () => {
-  const t = (key) => (key === 'clear.promptIntro' ? 'INTRO' : key);
   const base = {
-    t,
+    t: previewT,
     presetId: 'standard',
     instructions: [],
     switches: { unlimitedBudget: false, includeOriginalInstructions: false, includeMinimalContext: false },

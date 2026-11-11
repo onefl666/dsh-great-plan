@@ -45,52 +45,54 @@ function createSystemPrompt(order = 500) {
 
 test('guidance covers budgeting, brainstorming, evidence, handoff, and anti-fabrication rules', () => {
   assert.match(PLAN_EVIDENCE_GUIDANCE, /Token budget: unlimited/);
-  assert.match(PLAN_EVIDENCE_GUIDANCE, /Background/);
-  assert.match(PLAN_EVIDENCE_GUIDANCE, /Evidence chain/);
-  assert.match(PLAN_EVIDENCE_GUIDANCE, /Handoff/);
+  assert.match(PLAN_EVIDENCE_GUIDANCE, /Background:/);
+  assert.match(PLAN_EVIDENCE_GUIDANCE, /Evidence:/);
+  assert.match(PLAN_EVIDENCE_GUIDANCE, /Handoff:/);
+  assert.match(PLAN_EVIDENCE_GUIDANCE, /self-contained/);
   assert.match(PLAN_EVIDENCE_GUIDANCE, /assumption/i);
-  assert.match(PLAN_EVIDENCE_GUIDANCE, /never invent/i);
-  assert.match(PLAN_EVIDENCE_GUIDANCE, /re-?investigat|repeat this investigation/i);
-  assert.match(PLAN_EVIDENCE_GUIDANCE, /one concise, open-ended question per turn/i);
-  assert.match(PLAN_EVIDENCE_GUIDANCE, /materially change/);
-  assert.match(PLAN_EVIDENCE_GUIDANCE, /without needless questions/);
-  assert.match(PLAN_EVIDENCE_GUIDANCE, /multiple plausible approaches/);
-  assert.match(PLAN_EVIDENCE_GUIDANCE, /alternatives and tradeoffs/);
-  assert.match(PLAN_EVIDENCE_GUIDANCE, /distinguish user-stated requirements/);
-  assert.match(PLAN_EVIDENCE_GUIDANCE, /concise rationale summary, not private step-by-step chain-of-thought/);
-  assert.match(PLAN_EVIDENCE_GUIDANCE, /native review flow/);
-  assert.match(PLAN_EVIDENCE_GUIDANCE, /explore proactively/i);
-  assert.match(PLAN_EVIDENCE_GUIDANCE, /think deeply/i);
-  assert.match(PLAN_EVIDENCE_GUIDANCE, /multiple relevant aspects|from multiple aspects/i);
-  assert.match(PLAN_EVIDENCE_GUIDANCE, /you are the team lead/i);
-  assert.match(PLAN_EVIDENCE_GUIDANCE, /spawn_teammate/);
-  assert.match(PLAN_EVIDENCE_GUIDANCE, /at least two exploration teammates/i);
-  assert.match(PLAN_EVIDENCE_GUIDANCE, /distinct, concrete scope/i);
-  assert.match(PLAN_EVIDENCE_GUIDANCE, /concise, evidence-backed findings/i);
-  assert.match(PLAN_EVIDENCE_GUIDANCE, /file paths and line ranges/i);
-  assert.match(PLAN_EVIDENCE_GUIDANCE, /do not investigate those scopes yourself/i);
-  assert.match(PLAN_EVIDENCE_GUIDANCE, /collect every result and resolve conflicts yourself/i);
-  assert.match(PLAN_EVIDENCE_GUIDANCE, /one separate planning teammate/i);
-  assert.match(PLAN_EVIDENCE_GUIDANCE, /candidate final plan/i);
-  assert.match(PLAN_EVIDENCE_GUIDANCE, /consolidated evidence/i);
-  assert.match(PLAN_EVIDENCE_GUIDANCE, /verify the evidence and the candidate plan yourself/i);
-  assert.match(PLAN_EVIDENCE_GUIDANCE, /if teammate creation is unavailable/i);
-  assert.match(PLAN_EVIDENCE_GUIDANCE, /say so in the plan and continue alone/i);
-  assert.match(PLAN_EVIDENCE_GUIDANCE, /never invent subagent work/i);
+  assert.match(PLAN_EVIDENCE_GUIDANCE, /Never present a guess as fact or invent/);
+  assert.match(PLAN_EVIDENCE_GUIDANCE, /must not be re-investigated/);
+  assert.match(PLAN_EVIDENCE_GUIDANCE, /Re-check citations/);
+  assert.match(PLAN_EVIDENCE_GUIDANCE, /one concise question per turn/);
+  assert.match(PLAN_EVIDENCE_GUIDANCE, /materially change scope or approach/);
+  assert.match(PLAN_EVIDENCE_GUIDANCE, /If the request is clear or the user delegates the choice, proceed/);
+  assert.match(PLAN_EVIDENCE_GUIDANCE, /alternatives and tradeoffs only when they help the user decide/);
+  assert.match(PLAN_EVIDENCE_GUIDANCE, /key reason for your recommendation/);
+  assert.match(PLAN_EVIDENCE_GUIDANCE, /Separate user requirements from your recommendations, assumptions, and unverified points/);
+  assert.match(PLAN_EVIDENCE_GUIDANCE, /brief rationale, not step-by-step chain-of-thought/);
+  assert.match(PLAN_EVIDENCE_GUIDANCE, /You are the Team Lead/);
+  assert.match(PLAN_EVIDENCE_GUIDANCE, /`spawn_teammate`/);
+  assert.match(PLAN_EVIDENCE_GUIDANCE, /at least 2 exploration teammates in parallel/);
+  assert.match(PLAN_EVIDENCE_GUIDANCE, /one distinct, concrete scope/);
+  assert.match(PLAN_EVIDENCE_GUIDANCE, /concise findings cited as path:line-range/);
+  assert.match(PLAN_EVIDENCE_GUIDANCE, /Do not investigate their scopes yourself/);
+  assert.match(PLAN_EVIDENCE_GUIDANCE, /collect all results and resolve conflicts/);
+  assert.match(PLAN_EVIDENCE_GUIDANCE, /1 separate planning teammate/);
+  assert.match(PLAN_EVIDENCE_GUIDANCE, /candidate plan from the consolidated evidence/);
+  assert.match(PLAN_EVIDENCE_GUIDANCE, /Verify the evidence and the draft yourself/);
+  assert.match(PLAN_EVIDENCE_GUIDANCE, /unavailable or fails, say so in the plan and continue alone/);
+  assert.match(PLAN_EVIDENCE_GUIDANCE, /never invent teammate work/);
   assert.ok(PLAN_EVIDENCE_GUIDANCE.length > 400, 'guidance must carry substantial handoff instructions');
-  assert.ok(PLAN_EVIDENCE_GUIDANCE.length < 3200, 'guidance must stay compact');
+  assert.ok(PLAN_EVIDENCE_GUIDANCE.length < 2000, 'guidance must stay compact');
 });
 
-test('the unlimited-budget reminder asks for free spending without cutting the work', () => {
-  assert.match(PLAN_UNLIMITED_BUDGET_GUIDANCE, /Token budget: unlimited/);
-  assert.match(PLAN_UNLIMITED_BUDGET_GUIDANCE, /usage is unlimited/);
-  assert.match(PLAN_UNLIMITED_BUDGET_GUIDANCE, /Do not skimp on tokens/);
-  assert.match(PLAN_UNLIMITED_BUDGET_GUIDANCE, /spend freely/);
-  assert.match(PLAN_UNLIMITED_BUDGET_GUIDANCE, /very wealthy/);
-  assert.match(PLAN_UNLIMITED_BUDGET_GUIDANCE, /tool calls/);
-  assert.match(PLAN_UNLIMITED_BUDGET_GUIDANCE, /necessary questions/);
+test('guidance is English-only and leaves native plan:policy rules to the native section', () => {
+  for (const text of [PLAN_UNLIMITED_BUDGET_GUIDANCE, PLAN_BRAINSTORMING_GUIDANCE, PLAN_HANDOFF_GUIDANCE]) {
+    assert.equal(/[　-〿㐀-鿿＀-￯]/.test(text), false, 'model-facing guidance must be English');
+  }
+  assert.equal(PLAN_EVIDENCE_GUIDANCE.includes('native review flow'), false);
+  assert.equal(PLAN_EVIDENCE_GUIDANCE.includes('does not authorize execution'), false);
+  assert.equal(PLAN_EVIDENCE_GUIDANCE.includes('exit_plan_mode'), false);
+});
+
+test('the unlimited-budget reminder is a short neutral directive that does not cut the work', () => {
+  assert.match(PLAN_UNLIMITED_BUDGET_GUIDANCE, /^Token budget: unlimited\./);
+  assert.match(PLAN_UNLIMITED_BUDGET_GUIDANCE, /Never cut investigation, tool calls, or needed questions to save tokens/);
   assert.match(PLAN_UNLIMITED_BUDGET_GUIDANCE, /keep the final plan concise/);
-  assert.ok(PLAN_UNLIMITED_BUDGET_GUIDANCE.length < 400, 'the budget reminder must stay short');
+  for (const persona of ['DeepSeek', 'wealthy', 'stress-testing', 'spend freely']) {
+    assert.equal(PLAN_UNLIMITED_BUDGET_GUIDANCE.includes(persona), false, `${persona} must not be injected`);
+  }
+  assert.ok(PLAN_UNLIMITED_BUDGET_GUIDANCE.length < 160, 'the budget reminder must stay short');
 });
 
 test('the full guidance is exactly the default composition of its parts', () => {
@@ -99,16 +101,18 @@ test('the full guidance is exactly the default composition of its parts', () => 
     PLAN_EVIDENCE_GUIDANCE,
     `${PLAN_UNLIMITED_BUDGET_GUIDANCE}\n\n${PLAN_BRAINSTORMING_GUIDANCE}\n\n${PLAN_HANDOFF_GUIDANCE}`,
   );
-  assert.match(PLAN_BRAINSTORMING_GUIDANCE, /one concise, open-ended question per turn/i);
+  assert.match(PLAN_BRAINSTORMING_GUIDANCE, /one concise question per turn/);
   assert.match(PLAN_BRAINSTORMING_GUIDANCE, /alternatives and tradeoffs/);
-  assert.match(PLAN_BRAINSTORMING_GUIDANCE, /native review flow/);
-  assert.equal(PLAN_BRAINSTORMING_GUIDANCE.includes('Evidence chain'), false);
-  assert.match(PLAN_HANDOFF_GUIDANCE, /Background/);
-  assert.match(PLAN_HANDOFF_GUIDANCE, /Evidence chain/);
-  assert.match(PLAN_HANDOFF_GUIDANCE, /Handoff/);
-  assert.match(PLAN_HANDOFF_GUIDANCE, /never invent/i);
-  assert.equal(PLAN_HANDOFF_GUIDANCE.includes('one concise, open-ended question'), false);
-  assert.equal(PLAN_UNLIMITED_BUDGET_GUIDANCE.includes('Evidence chain'), false);
+  assert.match(PLAN_BRAINSTORMING_GUIDANCE, /spawn_teammate/);
+  assert.equal(PLAN_BRAINSTORMING_GUIDANCE.includes('Background:'), false);
+  assert.equal(PLAN_BRAINSTORMING_GUIDANCE.includes('Handoff:'), false);
+  assert.match(PLAN_HANDOFF_GUIDANCE, /Background:/);
+  assert.match(PLAN_HANDOFF_GUIDANCE, /Evidence:/);
+  assert.match(PLAN_HANDOFF_GUIDANCE, /Handoff:/);
+  assert.match(PLAN_HANDOFF_GUIDANCE, /invent/);
+  assert.equal(PLAN_HANDOFF_GUIDANCE.includes('one concise question'), false);
+  assert.equal(PLAN_HANDOFF_GUIDANCE.includes('spawn_teammate'), false);
+  assert.equal(PLAN_UNLIMITED_BUDGET_GUIDANCE.includes('Evidence:'), false);
 });
 
 test('the fully enabled composition is the shared module constant', () => {

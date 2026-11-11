@@ -6,8 +6,20 @@ window.__ModuleLoader__.load({
       return error instanceof Error ? error.message : String(error);
     }
 
+    /**
+     * Model-facing text is fixed English regardless of the UI locale; only the
+     * dialog chrome is translated.
+     */
+    const FRESH_PROMPT_INTRO = 'Execute the approved plan below in this fresh session. Do not re-plan or repeat its investigation: reuse its evidence, and first verify anything it marks as unverified or assumed.';
+
     /** Model-facing reminder appended to fresh-session execution when the budget switch is on. */
-    const UNLIMITED_BUDGET_REMINDER = 'Token budget: unlimited. Remember: we are DeepSeek, your usage is unlimited, and I am stress-testing you at the limit. Do not skimp on tokens — spend freely; you are very wealthy. Do not reduce investigation, tool calls, or necessary questions to save tokens; keep the final summary concise.';
+    const UNLIMITED_BUDGET_REMINDER = 'Token budget: unlimited. Never cut investigation, tool calls, or needed questions to save tokens; keep the final summary concise.';
+
+    /** Model-facing heading above the carried plan-mode user messages. */
+    const PLAN_MODE_INSTRUCTIONS_HEADING = 'User messages from plan mode, oldest first (context for the plan):';
+
+    /** Model-facing note that always closes the Minimal runtime context. */
+    const FRESH_SESSION_NOTE = 'Fresh session: the previous conversation is not included.';
 
     /**
      * Exact model-facing text native plan mode appends after an approved review.
@@ -17,7 +29,7 @@ window.__ModuleLoader__.load({
      */
     const PLAN_APPROVED_HANDOFF = 'Plan approved — plan mode exited; carry out the plan starting with your next step.';
 
-    /** Fixed wrapper tags keep the model-facing prompt parseable across locales. */
+    /** Fixed wrapper tags keep the model-facing prompt parseable. */
     const PLAN_MODE_INSTRUCTIONS_TAG = 'plan-mode-user-instructions';
     const FRESH_SESSION_CONTEXT_TAG = 'fresh-session-context';
     const INSTRUCTIONS_SEPARATOR = '\n\n---\n\n';
@@ -181,23 +193,6 @@ window.__ModuleLoader__.load({
       return { unlimitedBudget: true, includeOriginalInstructions: true, includeMinimalContext: true };
     }
 
-    /** Resolve one prompt label, with an English fallback when `t` is unavailable. */
-    function translate(t, key, fallback, params) {
-      if (typeof t === 'function') {
-        try {
-          const value = t(key, params);
-          if (typeof value === 'string' && value !== '') return value;
-        } catch {
-          // Fall through to the fallback.
-        }
-      }
-      if (params === undefined) return fallback;
-      return Object.entries(params).reduce(
-        (text, [name, value]) => text.replaceAll(`{${name}}`, String(value)),
-        fallback,
-      );
-    }
-
     /** Join the text blocks of one user message. */
     function textOf(content) {
       if (typeof content === 'string') return content.trim();
@@ -285,14 +280,9 @@ window.__ModuleLoader__.load({
     }
 
     /** Render the original-instructions block; empty when nothing is carried. */
-    function buildInstructionBlock(texts, t) {
+    function buildInstructionBlock(texts) {
       if (texts.length === 0) return '';
-      const heading = translate(
-        t,
-        'clear.instructionsIntro',
-        'User instructions sent during plan mode, in chronological order (background for the approved plan):',
-      );
-      return `${heading}\n\n<${PLAN_MODE_INSTRUCTIONS_TAG}>\n${texts.join(INSTRUCTIONS_SEPARATOR)}\n</${PLAN_MODE_INSTRUCTIONS_TAG}>\n\n`;
+      return `${PLAN_MODE_INSTRUCTIONS_HEADING}\n\n<${PLAN_MODE_INSTRUCTIONS_TAG}>\n${texts.join(INSTRUCTIONS_SEPARATOR)}\n</${PLAN_MODE_INSTRUCTIONS_TAG}>\n\n`;
     }
 
     /**
@@ -436,25 +426,15 @@ window.__ModuleLoader__.load({
     }
 
     /** Build the compact fresh-session environment block for Minimal mode. */
-    function buildMinimalRuntimeContext({ workspaceDirectory, system, time } = {}, t) {
+    function buildMinimalRuntimeContext({ workspaceDirectory, system, time } = {}) {
       const lines = [];
       const directory = typeof workspaceDirectory === 'string' ? workspaceDirectory.trim() : '';
-      if (directory !== '') {
-        lines.push(translate(t, 'clear.context.workspace', 'Workspace directory: {path}', { path: directory }));
-      }
+      if (directory !== '') lines.push(`Workspace: ${directory}`);
       const systemText = typeof system === 'string' ? system.trim() : '';
-      if (systemText !== '') {
-        lines.push(translate(t, 'clear.context.system', 'System: {system}', { system: systemText }));
-      }
+      if (systemText !== '') lines.push(`Platform: ${systemText}`);
       const timeText = typeof time === 'string' ? time.trim() : '';
-      if (timeText !== '') {
-        lines.push(translate(t, 'clear.context.time', 'Time: {time}', { time: timeText }));
-      }
-      lines.push(translate(
-        t,
-        'clear.context.cleared',
-        'Previous context cleared: this is a fresh session without the old conversation, system prompt, or time readings.',
-      ));
+      if (timeText !== '') lines.push(`Time: ${timeText}`);
+      lines.push(FRESH_SESSION_NOTE);
       return `<${FRESH_SESSION_CONTEXT_TAG}>\n${lines.join('\n')}\n</${FRESH_SESSION_CONTEXT_TAG}>`;
     }
 
@@ -468,7 +448,6 @@ window.__ModuleLoader__.load({
      */
     function resolveFreshPromptParts({
       plan,
-      t,
       presetId,
       instructions,
       workspaceDirectory,
@@ -481,18 +460,17 @@ window.__ModuleLoader__.load({
       const includeBudget = values.unlimitedBudget !== false;
       const includeInstructions = values.includeOriginalInstructions !== false;
       const includeMinimalContext = values.includeMinimalContext !== false && presetId === 'minimal';
-      const intro = translate(t, 'clear.promptIntro', 'The user approved the following plan. Execute it now without re-planning.');
+      const intro = FRESH_PROMPT_INTRO;
       const budget = includeBudget ? `${UNLIMITED_BUDGET_REMINDER}\n\n` : '';
       const runtimeContext = includeMinimalContext
         ? `${buildMinimalRuntimeContext({
           workspaceDirectory,
           system: runtimeFacts?.system,
           time: runtimeFacts?.time,
-        }, t)}\n\n`
+        })}\n\n`
         : '';
       const instructionTexts = normalizeInstructionTexts(instructions);
       return {
-        t,
         intro,
         budget,
         runtimeContext,
@@ -504,14 +482,13 @@ window.__ModuleLoader__.load({
 
     /** Assemble the six first-message blocks; the only place the text is built. */
     function assembleFreshPrompt({
-      t,
       intro,
       budget,
       runtimeContext,
       carriedInstructions,
       planBody,
     }) {
-      const instructionBlock = buildInstructionBlock(carriedInstructions, t);
+      const instructionBlock = buildInstructionBlock(carriedInstructions);
       const planBlock = `<approved-plan>\n${planBody}\n</approved-plan>`;
       const handoffBlock = `\n\n${PLAN_APPROVED_HANDOFF}`;
       return {
@@ -525,20 +502,20 @@ window.__ModuleLoader__.load({
     /**
      * Compose the legacy execution prompt from explicit parts.
      *
-     * Kept byte-identical to the previous implementation; it now funnels
-     * through the shared assembler.
+     * Funnels through the shared assembler. The second positional argument
+     * (formerly the translator) is kept for call compatibility and ignored:
+     * model-facing text is fixed English.
      */
-    function buildPlanExecutionPrompt(plan, t, options = {}) {
+    function buildPlanExecutionPrompt(plan, _t, options = {}) {
       const config = typeof options === 'boolean' ? { unlimitedBudget: options } : (options ?? {});
       const planBody = typeof plan === 'string' ? plan.trim() : '';
       if (planBody === '') throw new ActionError('emptyPlan');
-      const intro = translate(t, 'clear.promptIntro', 'The user approved the following plan. Execute it now without re-planning.');
+      const intro = FRESH_PROMPT_INTRO;
       const budget = config.unlimitedBudget === false ? '' : `${UNLIMITED_BUDGET_REMINDER}\n\n`;
       const runtimeContext = typeof config.runtimeContext === 'string' && config.runtimeContext.trim() !== ''
         ? `${config.runtimeContext.trim()}\n\n`
         : '';
       return assembleFreshPrompt({
-        t,
         intro,
         budget,
         runtimeContext,
@@ -843,7 +820,6 @@ window.__ModuleLoader__.load({
         title,
         titleSuffix,
         signal,
-        t,
         readPromptSwitches,
         runtimeFacts,
         instructions,
@@ -888,7 +864,6 @@ window.__ModuleLoader__.load({
           : undefined;
         const promptText = composeFreshPrompt({
           plan: review?.plan,
-          t,
           presetId,
           instructions: instructionTexts,
           workspaceDirectory: workspaceDirectory ?? cwd,
@@ -994,7 +969,9 @@ window.__ModuleLoader__.load({
 
     return {
       messageOf,
+      FRESH_PROMPT_INTRO,
       UNLIMITED_BUDGET_REMINDER,
+      PLAN_MODE_INSTRUCTIONS_HEADING,
       PLAN_APPROVED_HANDOFF,
       PLAN_MODE_INSTRUCTIONS_TAG,
       FRESH_SESSION_CONTEXT_TAG,

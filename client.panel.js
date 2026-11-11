@@ -588,7 +588,6 @@ window.__ModuleLoader__.load({
             title,
             titleSuffix: t('clear.titleSuffix'),
             signal: controller.signal,
-            t,
             instructions: activeSwitches.includeOriginalInstructions ? instructionsState.texts : undefined,
             switches: activeSwitches,
             stillPending: () => pendingRef.current !== undefined,
@@ -706,7 +705,6 @@ window.__ModuleLoader__.load({
       } else if (view === 'clear') {
         const preview = freshPreviewOf({
           plan: review?.plan,
-          t,
           presetId: effectivePresetId,
           instructions: instructionsState.texts,
           workspaceDirectory,

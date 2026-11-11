@@ -160,6 +160,24 @@ test('the 0.4.0 locale additions are present in both dictionaries', () => {
   }
 });
 
+/** Former prompt keys: model-facing text is fixed English in client.actions.js, never localized. */
+const PROMPT_ONLY_KEYS = [
+  'clear.promptIntro',
+  'clear.instructionsIntro',
+  'clear.context.workspace',
+  'clear.context.system',
+  'clear.context.time',
+  'clear.context.cleared',
+];
+
+test('model-facing prompt text is not part of the UI dictionaries', () => {
+  const { zh, en } = createPlugin().testSurface.dictionaries;
+  for (const key of PROMPT_ONLY_KEYS) {
+    assert.equal(key in zh, false, `zh must not localize the prompt key ${key}`);
+    assert.equal(key in en, false, `en must not localize the prompt key ${key}`);
+  }
+});
+
 test('the test surface declares the three chunk load waves', () => {
   const plugin = createPlugin();
   assert.deepEqual(plugin.testSurface.loadChunks(), [
