@@ -11,132 +11,26 @@ window.__ModuleLoader__.load({
 
     const { useEffect, useMemo, useRef, useState } = React;
 
-    /** Every fresh-session prompt switch defaults to on, like the Host Config. */
-    const DEFAULT_SWITCHES = {
-      unlimitedBudget: true,
-      includeOriginalInstructions: true,
-      includeMinimalContext: true,
-    };
-
     /** Instructions state before the clear view reads the old session. */
     function emptyInstructions() {
       return { status: 'idle', texts: [], count: 0, chars: 0 };
     }
 
-    /** Normalize the injected `readPromptSwitches` face; unreadable values stay on. */
-    function normalizeSwitches(read) {
-      if (typeof actionHelpers.normalizePromptSwitches === 'function') {
-        try {
-          return actionHelpers.normalizePromptSwitches(read);
-        } catch {
-          // Fall through to the local defaults.
-        }
-      }
-      let value;
+    /** The fresh-message preview; the shared assembler throws ActionError('emptyPlan') for an empty plan. */
+    function freshPreviewOf(input) {
       try {
-        value = typeof read === 'function' ? read() : undefined;
+        return actionHelpers.describeFreshPrompt(input);
       } catch {
-        value = undefined;
-      }
-      if (typeof value === 'boolean') {
-        return { unlimitedBudget: value, includeOriginalInstructions: true, includeMinimalContext: true };
-      }
-      if (value !== null && typeof value === 'object') {
         return {
-          unlimitedBudget: value.unlimitedBudget !== false,
-          includeOriginalInstructions: value.includeOriginalInstructions !== false,
-          includeMinimalContext: value.includeMinimalContext !== false,
+          text: '',
+          blocks: [],
+          instructionCount: 0,
+          instructionChars: 0,
+          totalChars: 0,
+          approxTokens: 0,
+          oversized: false,
         };
       }
-      return { ...DEFAULT_SWITCHES };
-    }
-
-    /** Read the current runtime facts for the preview; execution re-reads them. */
-    function readRuntimeFactsForPreview() {
-      if (typeof actionHelpers.readRuntimeFacts === 'function') {
-        try {
-          const facts = actionHelpers.readRuntimeFacts();
-          if (facts !== null && typeof facts === 'object') return facts;
-        } catch {
-          // Fall through to the empty facts.
-        }
-      }
-      return { system: undefined, time: undefined };
-    }
-
-    /** Localize an ActionError when the actions module knows the code. */
-    function describeActionErrorSafe(t, caught) {
-      if (typeof actionHelpers.describeActionError === 'function') {
-        try {
-          const described = actionHelpers.describeActionError(t, caught);
-          if (typeof described === 'string' && described !== '') return described;
-        } catch {
-          // Fall through to the contextual fallback.
-        }
-      }
-      return undefined;
-    }
-
-    /** Localized error text: the shared ActionError copy, else the panel fallback. */
-    function describeCaught(t, caught, fallbackKey) {
-      return describeActionErrorSafe(t, caught) ?? t(fallbackKey, { message: ui.messageOf(caught) });
-    }
-
-    /** Localize one compaction failure message; unknown text passes through. */
-    function compactFailureMessage(t, failure) {
-      if (typeof actionHelpers.describeCompactFailure === 'function') {
-        try {
-          const described = actionHelpers.describeCompactFailure(t, failure.message);
-          if (typeof described === 'string' && described !== '') return described;
-        } catch {
-          // Fall through to the raw message.
-        }
-      }
-      return failure.message;
-    }
-
-    /** Plan summary/full-length pair; never throws for an odd review. */
-    function planInfoOf(review) {
-      if (typeof actionHelpers.planPreviewText === 'function') {
-        try {
-          const info = actionHelpers.planPreviewText(review?.plan);
-          if (info !== null && typeof info === 'object') {
-            return {
-              preview: typeof info.preview === 'string' ? info.preview : '',
-              chars: typeof info.chars === 'number' ? info.chars : 0,
-            };
-          }
-        } catch {
-          // Fall through to the empty info.
-        }
-      }
-      return { preview: '', chars: 0 };
-    }
-
-    /** Full plan text; empty when the review carries none. */
-    function planTextOf(review) {
-      return typeof review?.plan === 'string' ? review.plan : '';
-    }
-
-    /** The fresh-message preview; degraded shapes stay renderable. */
-    function freshPreviewOf(input) {
-      if (typeof actionHelpers.describeFreshPrompt === 'function') {
-        try {
-          const preview = actionHelpers.describeFreshPrompt(input);
-          if (preview !== null && typeof preview === 'object') return preview;
-        } catch {
-          // Fall through to the empty preview.
-        }
-      }
-      return {
-        text: '',
-        blocks: [],
-        instructionCount: 0,
-        instructionChars: 0,
-        totalChars: 0,
-        approxTokens: 0,
-        oversized: false,
-      };
     }
 
     /**
@@ -146,8 +40,8 @@ window.__ModuleLoader__.load({
      * region; the toggle only exists when the review carries plan text.
      */
     function planSectionOf({ review, t, expanded, onToggle }) {
-      const info = planInfoOf(review);
-      const body = planTextOf(review);
+      const info = actionHelpers.planPreviewText(review?.plan);
+      const body = typeof review?.plan === 'string' ? review.plan : '';
       const question = typeof review?.question === 'string' ? review.question.trim() : '';
       const expandable = body.trim() !== '';
       return h('div', {
@@ -214,7 +108,7 @@ window.__ModuleLoader__.load({
           title: t('trigger.aria'),
           onClick: () => setOpen(true),
         },
-        h(ui.IconSliders, { className: 'gp-trigger-icon' }),
+        h(ui.IconSliders),
         h('span', { className: 'gp-trigger-label' }, t('trigger.label')),
         h(ui.IconChevronDown, { className: 'gp-trigger-chevron' }),
         ),
@@ -225,7 +119,6 @@ window.__ModuleLoader__.load({
             triggerRef,
             pending,
             review,
-            requestKey,
             directory,
             actions,
             presetStore,
@@ -264,7 +157,7 @@ window.__ModuleLoader__.load({
         t,
       } = props;
       const directoryState = model.useDirectoryState(directory);
-      const presetState = preset.usePresetState(presetStore.store);
+      const presetState = ui.useStore(presetStore.store);
       const [view, setView] = useState('root');
       const [busy, setBusy] = useState(null);
       const [error, setError] = useState(null);
@@ -291,22 +184,6 @@ window.__ModuleLoader__.load({
       }, []);
 
       useEffect(() => {
-        if (!open) {
-          setView('root');
-          setBusy(null);
-          setError(null);
-          setCleanupWarning(null);
-          setCompactFailure(null);
-          setStatusLine(null);
-          setPresetChoice(null);
-          setRunSwitches(null);
-          setPreviewFacts(null);
-          setInstructionsState(emptyInstructions());
-          setPlanExpanded(false);
-          abortRef.current?.abort();
-          instructionsAbortRef.current?.abort();
-          return;
-        }
         directory.load().catch(() => {});
       }, [open, directory]);
 
@@ -339,7 +216,7 @@ window.__ModuleLoader__.load({
         || busy === 'clear'
         || modelSelecting;
       const canRevise = typeof pending?.dismiss === 'function' && !blocked;
-      const switches = runSwitches ?? normalizeSwitches(readPromptSwitches);
+      const switches = runSwitches ?? actionHelpers.normalizePromptSwitches(readPromptSwitches);
 
       const start = (kind) => {
         const controller = new AbortController();
@@ -404,8 +281,8 @@ window.__ModuleLoader__.load({
         setStatusLine(null);
         setCompactFailure(null);
         setCleanupWarning(null);
-        setPreviewFacts(readRuntimeFactsForPreview());
-        const initial = normalizeSwitches(readPromptSwitches);
+        setPreviewFacts(actionHelpers.readRuntimeFacts());
+        const initial = actionHelpers.normalizePromptSwitches(readPromptSwitches);
         setRunSwitches(initial);
         setInstructionsState(emptyInstructions());
         if (initial.includeOriginalInstructions) startInstructionsRead();
@@ -419,7 +296,7 @@ window.__ModuleLoader__.load({
       };
 
       const toggleSwitch = (name) => {
-        const current = runSwitches ?? normalizeSwitches(readPromptSwitches);
+        const current = runSwitches ?? actionHelpers.normalizePromptSwitches(readPromptSwitches);
         const next = { ...current, [name]: !current[name] };
         setRunSwitches(next);
         if (name === 'includeOriginalInstructions'
@@ -430,15 +307,16 @@ window.__ModuleLoader__.load({
         }
       };
 
-      const selectModel = async (group, item) => {
+      const applySelection = async (kind, payload) => {
         if (busy !== null) return;
-        setBusy('model');
+        if (kind === 'effort' && (directoryState.current === null || directoryState.current === undefined)) return;
+        setBusy(kind);
         setError(null);
         try {
-          const result = await directory.select({ provider: group.id, model: item.id });
+          const result = await directory.select(payload);
           if (!aliveRef.current) return;
           if (!result.ok) {
-            setError(t('error.selectModelFailed', { message: `${result.error.message} (${result.error.code})` }));
+            setError(t('error.selectModelFailed', { message: actionHelpers.formatRpcFailure(result) }));
             return;
           }
           setView('root');
@@ -449,30 +327,7 @@ window.__ModuleLoader__.load({
         }
       };
 
-      const selectEffort = async (effort) => {
-        if (busy !== null || directoryState.current === null || directoryState.current === undefined) return;
-        setBusy('effort');
-        setError(null);
-        try {
-          const result = await directory.select({
-            provider: directoryState.current.provider,
-            model: directoryState.current.model,
-            ...effort === undefined ? {} : { reasoningEffort: effort },
-          });
-          if (!aliveRef.current) return;
-          if (!result.ok) {
-            setError(t('error.selectModelFailed', { message: `${result.error.message} (${result.error.code})` }));
-            return;
-          }
-          setView('root');
-        } catch (caught) {
-          if (aliveRef.current) setError(t('error.selectModelFailed', { message: ui.messageOf(caught) }));
-        } finally {
-          finish();
-        }
-      };
-
-      const execute = async () => {
+      const approvePending = async () => {
         if (busy !== null) return;
         if (pending === undefined) {
           setError(t('error.reviewGone'));
@@ -484,26 +339,7 @@ window.__ModuleLoader__.load({
           if (aliveRef.current) onClose();
         } catch (caught) {
           if (aliveRef.current && !controller.signal.aborted) {
-            setError(describeCaught(t, caught, 'error.approveFailed'));
-          }
-        } finally {
-          finish();
-        }
-      };
-
-      const proceedAnyway = async () => {
-        if (busy !== null) return;
-        if (pending === undefined) {
-          setError(t('error.reviewGone'));
-          return;
-        }
-        const controller = start('execute');
-        try {
-          await actions.approveReview({ pending, review });
-          if (aliveRef.current) onClose();
-        } catch (caught) {
-          if (aliveRef.current && !controller.signal.aborted) {
-            setError(describeCaught(t, caught, 'error.approveFailed'));
+            setError(actionHelpers.describeActionError(t, caught) ?? t('error.approveFailed', { message: ui.messageOf(caught) }));
           }
         } finally {
           finish();
@@ -537,7 +373,7 @@ window.__ModuleLoader__.load({
           } catch (caught) {
             if (aliveRef.current && !controller.signal.aborted) {
               setStatusLine(null);
-              setError(describeCaught(t, caught, 'error.approveFailed'));
+              setError(actionHelpers.describeActionError(t, caught) ?? t('error.approveFailed', { message: ui.messageOf(caught) }));
             }
           }
         } finally {
@@ -562,7 +398,7 @@ window.__ModuleLoader__.load({
           await actions.dismissReview({ pending });
           if (aliveRef.current) onClose();
         } catch (caught) {
-          if (aliveRef.current) setError(describeCaught(t, caught, 'error.dismissFailed'));
+          if (aliveRef.current) setError(actionHelpers.describeActionError(t, caught) ?? t('error.dismissFailed', { message: ui.messageOf(caught) }));
         } finally {
           finish();
         }
@@ -574,7 +410,7 @@ window.__ModuleLoader__.load({
           setError(t('error.reviewGone'));
           return;
         }
-        const activeSwitches = runSwitches ?? normalizeSwitches(readPromptSwitches);
+        const activeSwitches = runSwitches ?? actionHelpers.normalizePromptSwitches(readPromptSwitches);
         if (activeSwitches.includeOriginalInstructions && instructionsState.status === 'loading') return;
         const controller = start('clear');
         try {
@@ -599,7 +435,7 @@ window.__ModuleLoader__.load({
           onClose();
         } catch (caught) {
           if (aliveRef.current && !controller.signal.aborted) {
-            setError(describeCaught(t, caught, 'error.freshFailed'));
+            setError(actionHelpers.describeActionError(t, caught) ?? t('error.freshFailed', { message: ui.messageOf(caught) }));
             const cleanup = caught?.cleanupError;
             if (typeof cleanup === 'string' && cleanup !== '') {
               setCleanupWarning(t('error.cleanupFailed', { message: cleanup }));
@@ -632,33 +468,34 @@ window.__ModuleLoader__.load({
         preset: t('preset.title'),
       };
 
-      let subtitle;
-      if (view === 'model' || view === 'effort') subtitle = model.summaryOf(directoryState, t);
-      else if (view === 'root') subtitle = t('panel.subtitle');
-
-      const header = h('div', { className: 'gp-dialog-header' },
-        view === 'root' ? null : h(ui.IconButton, {
-          label: t('panel.back'),
-          onClick: back,
-          disabled: blocked,
-        }, h(ui.IconChevronLeft)),
-        h('div', { className: 'gp-dialog-title-wrap' },
-          h('h2', {
-            ref: titleRef,
-            className: 'gp-dialog-title',
-            id: 'gp-great-plan-title',
-            tabIndex: -1,
-            title: titles[view],
-          }, titles[view]),
-          subtitle === undefined ? null : h('div', { className: 'gp-dialog-subtitle' }, subtitle),
-        ),
-        h(ui.IconButton, {
-          label: t('panel.close'),
-          onClick: close,
-          disabled: blocked,
-          autoFocus: true,
-        }, h(ui.IconClose)),
-      );
+      const renderHeader = () => {
+        let subtitle;
+        if (view === 'model' || view === 'effort') subtitle = model.summaryOf(directoryState, t);
+        else if (view === 'root') subtitle = t('panel.subtitle');
+        return h('div', { className: 'gp-dialog-header' },
+          view === 'root' ? null : h(ui.IconButton, {
+            label: t('panel.back'),
+            onClick: back,
+            disabled: blocked,
+          }, h(ui.IconChevronLeft)),
+          h('div', { className: 'gp-dialog-title-wrap' },
+            h('h2', {
+              ref: titleRef,
+              className: 'gp-dialog-title',
+              id: 'gp-great-plan-title',
+              tabIndex: -1,
+              title: titles[view],
+            }, titles[view]),
+            subtitle === undefined ? null : h('div', { className: 'gp-dialog-subtitle' }, subtitle),
+          ),
+          h(ui.IconButton, {
+            label: t('panel.close'),
+            onClick: close,
+            disabled: blocked,
+            autoFocus: true,
+          }, h(ui.IconClose)),
+        );
+      };
 
       const planSection = planSectionOf({
         review,
@@ -667,42 +504,72 @@ window.__ModuleLoader__.load({
         onToggle: () => setPlanExpanded((value) => !value),
       });
 
-      let body;
-      if (view === 'model') {
-        body = h('div', { className: 'gp-dialog-body' },
-          error === null ? null : h(ui.ErrorText, null, error),
-          h(model.ModelListView, {
-            state: directoryState,
-            t,
-            disabled: controlBusy,
-            onPick: selectModel,
-            onRetry: () => directory.load().catch(() => {}),
-          }),
+      const renderCompactFailure = () => compactFailure === null
+        ? null
+        : h('div', { className: 'gp-failure' },
+          h(ui.WarningBox, null, t('compact.failed', { message: actionHelpers.describeCompactFailure(t, compactFailure.message) })),
+          h(ui.Note, null, t('compact.failedHint')),
+          h('div', { className: 'gp-failure-actions' },
+            h(ui.Button, {
+              variant: 'outline',
+              disabled: controlBusy,
+              onClick: compact,
+            }, busy === 'compact' ? h(ui.Loading, null, t('compact.retrying')) : t('compact.retry')),
+            h(ui.Button, {
+              variant: 'primary',
+              disabled: controlBusy,
+              onClick: approvePending,
+            }, t('compact.proceed')),
+            h(ui.Button, {
+              variant: 'ghost',
+              disabled: controlBusy,
+              onClick: cancelCompactFailure,
+            }, t('compact.cancel')),
+          ),
         );
-      } else if (view === 'effort') {
-        body = h('div', { className: 'gp-dialog-body' },
-          error === null ? null : h(ui.ErrorText, null, error),
-          h(model.EffortListView, {
-            state: directoryState,
-            t,
-            disabled: controlBusy,
-            onPick: selectEffort,
-          }),
-        );
-      } else if (view === 'preset') {
-        body = h('div', { className: 'gp-dialog-body' },
-          h(preset.PresetOptions, {
-            state: presetState,
-            t,
-            selectedId: effectivePresetId,
-            onPick: (id) => {
-              setPresetChoice(id);
-              setView('clear');
-            },
-            onRetry: () => presetStore.load(true).catch(() => {}),
-          }),
-        );
-      } else if (view === 'clear') {
+
+      const renderModelView = () => h('div', { className: 'gp-dialog-body' },
+        error === null ? null : h(ui.ErrorText, null, error),
+        h(model.ModelListView, {
+          state: directoryState,
+          t,
+          disabled: controlBusy,
+          onPick: (group, item) => applySelection('model', { provider: group.id, model: item.id }),
+          onRetry: () => directory.load().catch(() => {}),
+        }),
+      );
+
+      const renderEffortView = () => h('div', { className: 'gp-dialog-body' },
+        error === null ? null : h(ui.ErrorText, null, error),
+        h(model.EffortListView, {
+          state: directoryState,
+          t,
+          disabled: controlBusy,
+          onPick: (effort) => {
+            if (directoryState.current === null || directoryState.current === undefined) return;
+            applySelection('effort', {
+              provider: directoryState.current.provider,
+              model: directoryState.current.model,
+              ...effort === undefined ? {} : { reasoningEffort: effort },
+            });
+          },
+        }),
+      );
+
+      const renderPresetView = () => h('div', { className: 'gp-dialog-body' },
+        h(preset.PresetOptions, {
+          state: presetState,
+          t,
+          selectedId: effectivePresetId,
+          onPick: (id) => {
+            setPresetChoice(id);
+            setView('clear');
+          },
+          onRetry: () => presetStore.load(true).catch(() => {}),
+        }),
+      );
+
+      const renderClearView = () => {
         const preview = freshPreviewOf({
           plan: review?.plan,
           presetId: effectivePresetId,
@@ -718,7 +585,7 @@ window.__ModuleLoader__.load({
         const minimalDisabled = effectivePresetId !== 'minimal';
         const runtimeIncluded = switches.includeMinimalContext === true && effectivePresetId === 'minimal';
         const confirmDisabled = controlBusy || directoryLoading || instructionsLoading;
-        body = h('div', { className: 'gp-dialog-body' },
+        return h('div', { className: 'gp-dialog-body' },
           planSection,
           h(ui.WarningBox, null, t('clear.warning')),
           h(ui.SelectRow, {
@@ -797,85 +664,72 @@ window.__ModuleLoader__.load({
           ),
           h(ui.Note, { className: 'gp-footer-note' }, t('clear.kept')),
         );
-      } else {
-        body = h('div', { className: 'gp-dialog-body' },
-          planSection,
-          h(model.ModelRows, {
-            state: directoryState,
-            t,
-            disabled: !modelAvailable || controlBusy,
-            onOpenModel: () => setView('model'),
-            onOpenEffort: () => setView('effort'),
-            onRetry: () => directory.load().catch(() => {}),
-          }),
-          !modelAvailable ? h(ui.Note, null, t('panel.subagentUnavailable')) : null,
-          compactFailure === null
-            ? null
-            : h('div', { className: 'gp-failure' },
-              h(ui.WarningBox, null, t('compact.failed', { message: compactFailureMessage(t, compactFailure) })),
-              h(ui.Note, null, t('compact.failedHint')),
-              h('div', { className: 'gp-failure-actions' },
-                h(ui.Button, {
-                  variant: 'outline',
-                  disabled: controlBusy,
-                  onClick: compact,
-                }, busy === 'compact' ? h(ui.Loading, null, t('compact.retrying')) : t('compact.retry')),
-                h(ui.Button, {
-                  variant: 'primary',
-                  disabled: controlBusy,
-                  onClick: proceedAnyway,
-                }, t('compact.proceed')),
-                h(ui.Button, {
-                  variant: 'ghost',
-                  disabled: controlBusy,
-                  onClick: cancelCompactFailure,
-                }, t('compact.cancel')),
-              ),
-            ),
-          statusLine === null ? null : h('div', { className: 'gp-status', role: 'status' }, statusLine),
-          error === null ? null : h(ui.ErrorText, null, error),
-          compactFailure === null
-            ? h('div', null,
-              h('div', { className: 'gp-separator' }),
-              h('div', { className: 'gp-actions' },
-                h(ui.ActionRow, {
-                  primary: true,
-                  icon: h(ui.IconPlay),
-                  title: t('panel.actions.execute.title'),
-                  description: t('panel.actions.execute.description'),
-                  disabled: controlBusy,
-                  onClick: execute,
-                }),
-                h(ui.ActionRow, {
-                  icon: h(ui.IconCompress),
-                  title: t('panel.actions.compact.title'),
-                  description: t('panel.actions.compact.description'),
-                  disabled: controlBusy,
-                  onClick: compact,
-                }),
-                h(ui.ActionRow, {
-                  icon: h(ui.IconNewSession),
-                  title: t('panel.actions.clear.title'),
-                  description: t('panel.actions.clear.description'),
-                  disabled: controlBusy || !modelAvailable,
-                  onClick: enterClear,
-                }),
-              ),
-            )
-            : null,
-          canRevise
-            ? h('div', { className: 'gp-actions' },
-              h(ui.Button, {
-                variant: 'ghost',
-                full: true,
+      };
+
+      const renderRootView = () => h('div', { className: 'gp-dialog-body' },
+        planSection,
+        h(model.ModelRows, {
+          state: directoryState,
+          t,
+          disabled: !modelAvailable || controlBusy,
+          onOpenModel: () => setView('model'),
+          onOpenEffort: () => setView('effort'),
+          onRetry: () => directory.load().catch(() => {}),
+        }),
+        !modelAvailable ? h(ui.Note, null, t('panel.subagentUnavailable')) : null,
+        renderCompactFailure(),
+        statusLine === null ? null : h('div', { className: 'gp-status', role: 'status' }, statusLine),
+        error === null ? null : h(ui.ErrorText, null, error),
+        compactFailure === null
+          ? h('div', null,
+            h('div', { className: 'gp-separator' }),
+            h('div', { className: 'gp-actions' },
+              h(ui.ActionRow, {
+                primary: true,
+                icon: h(ui.IconPlay),
+                title: t('panel.actions.execute.title'),
+                description: t('panel.actions.execute.description'),
                 disabled: controlBusy,
-                onClick: revise,
-              }, busy === 'dismiss' ? h(ui.Loading, null, t('panel.loading')) : t('panel.revise')),
-            )
-            : null,
-          h(ui.Note, { className: 'gp-footer-note' }, t('panel.applyNote')),
-        );
-      }
+                onClick: approvePending,
+              }),
+              h(ui.ActionRow, {
+                icon: h(ui.IconCompress),
+                title: t('panel.actions.compact.title'),
+                description: t('panel.actions.compact.description'),
+                disabled: controlBusy,
+                onClick: compact,
+              }),
+              h(ui.ActionRow, {
+                icon: h(ui.IconNewSession),
+                title: t('panel.actions.clear.title'),
+                description: t('panel.actions.clear.description'),
+                disabled: controlBusy || !modelAvailable,
+                onClick: enterClear,
+              }),
+            ),
+          )
+          : null,
+        canRevise
+          ? h('div', { className: 'gp-actions' },
+            h(ui.Button, {
+              variant: 'ghost',
+              full: true,
+              disabled: controlBusy,
+              onClick: revise,
+            }, busy === 'dismiss' ? h(ui.Loading, null, t('panel.loading')) : t('panel.revise')),
+          )
+          : null,
+        h(ui.Note, { className: 'gp-footer-note' }, t('panel.applyNote')),
+      );
+
+      const views = {
+        model: renderModelView,
+        effort: renderEffortView,
+        preset: renderPresetView,
+        clear: renderClearView,
+        root: renderRootView,
+      };
+      const body = views[view]();
 
       return h(ui.Dialog, {
         open,
@@ -884,7 +738,7 @@ window.__ModuleLoader__.load({
         busy: busy !== null,
         anchorRef: triggerRef,
         labelledBy: 'gp-great-plan-title',
-      }, header, body);
+      }, renderHeader(), body);
     }
 
     return {

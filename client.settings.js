@@ -14,7 +14,6 @@ window.__ModuleLoader__.load({
       minimalContext: 'includeMinimalRuntimeContext',
     };
 
-    /** Settings rows, in display order. */
     const ROWS = [
       { field: FIELDS.brainstorming, title: 'settings.brainstorm.title', description: 'settings.brainstorm.description' },
       { field: FIELDS.budget, title: 'settings.budget.title', description: 'settings.budget.description' },
@@ -27,62 +26,12 @@ window.__ModuleLoader__.load({
       return snapshot?.value?.[field] !== false;
     }
 
-    /** Read the brainstorming switch value from a configuration form snapshot. */
-    function readBrainstormingValue(snapshot) {
-      return readSwitchValue(snapshot, FIELDS.brainstorming);
-    }
-
-    /** Read the unlimited-budget switch value from a configuration form snapshot. */
-    function readBudgetValue(snapshot) {
-      return readSwitchValue(snapshot, FIELDS.budget);
-    }
-
-    /** Read the original-instruction switch value from a configuration form snapshot. */
-    function readOriginalInstructionsValue(snapshot) {
-      return readSwitchValue(snapshot, FIELDS.originalInstructions);
-    }
-
-    /** Read the minimal-runtime-context switch value from a configuration form snapshot. */
-    function readMinimalContextValue(snapshot) {
-      return readSwitchValue(snapshot, FIELDS.minimalContext);
-    }
-
     /** Read the shared settings form snapshot, or undefined when the capability is unavailable. */
     function readFormSnapshot(configForms) {
       if (configForms === undefined || configForms === null || typeof configForms.get !== 'function') return undefined;
       const form = configForms.get('great-plan');
       if (form === undefined || form === null || typeof form.getSnapshot !== 'function') return undefined;
       return form.getSnapshot();
-    }
-
-    /**
-     * Read one switch through the shared configuration mirror.
-     *
-     * A missing settings capability, an unreadable form, or an unready snapshot
-     * keeps the Host default (enabled) so execution never fails because of
-     * configuration.
-     */
-    function readSwitch(configForms, field) {
-      try {
-        return readSwitchValue(readFormSnapshot(configForms), field);
-      } catch {
-        return true;
-      }
-    }
-
-    /** Read the unlimited-budget switch; defaults to enabled. */
-    function readBudgetSwitch(configForms) {
-      return readSwitch(configForms, FIELDS.budget);
-    }
-
-    /** Read the original-instruction switch; defaults to enabled. */
-    function readOriginalInstructionsSwitch(configForms) {
-      return readSwitch(configForms, FIELDS.originalInstructions);
-    }
-
-    /** Read the minimal-runtime-context switch; defaults to enabled. */
-    function readMinimalContextSwitch(configForms) {
-      return readSwitch(configForms, FIELDS.minimalContext);
     }
 
     /**
@@ -96,9 +45,9 @@ window.__ModuleLoader__.load({
       try {
         const snapshot = readFormSnapshot(configForms);
         return {
-          unlimitedBudget: readBudgetValue(snapshot),
-          includeOriginalInstructions: readOriginalInstructionsValue(snapshot),
-          includeMinimalContext: readMinimalContextValue(snapshot),
+          unlimitedBudget: readSwitchValue(snapshot, FIELDS.budget),
+          includeOriginalInstructions: readSwitchValue(snapshot, FIELDS.originalInstructions),
+          includeMinimalContext: readSwitchValue(snapshot, FIELDS.minimalContext),
         };
       } catch {
         return { unlimitedBudget: true, includeOriginalInstructions: true, includeMinimalContext: true };
@@ -211,13 +160,6 @@ window.__ModuleLoader__.load({
       FIELDS,
       ROWS,
       readSwitchValue,
-      readBrainstormingValue,
-      readBudgetValue,
-      readOriginalInstructionsValue,
-      readMinimalContextValue,
-      readBudgetSwitch,
-      readOriginalInstructionsSwitch,
-      readMinimalContextSwitch,
       readFreshPromptSwitches,
       GreatPlanSection,
       GreatPlanForm,

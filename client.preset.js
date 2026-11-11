@@ -6,18 +6,11 @@ window.__ModuleLoader__.load({
     const h = React.createElement;
     const ui = require('@onefl666/dsh-great-plan/client.ui.js');
 
-    const BUILTIN_NAMES = {
-      standard: 'preset.standard',
-      ptc: 'preset.ptc',
-      minimal: 'preset.minimal',
-      cordis: 'preset.cordis',
-    };
-
-    const BUILTIN_DESCRIPTIONS = {
-      standard: 'preset.standardDescription',
-      ptc: 'preset.ptcDescription',
-      minimal: 'preset.minimalDescription',
-      cordis: 'preset.cordisDescription',
+    const BUILTINS = {
+      standard: { name: 'preset.standard', description: 'preset.standardDescription' },
+      ptc: { name: 'preset.ptc', description: 'preset.ptcDescription' },
+      minimal: { name: 'preset.minimal', description: 'preset.minimalDescription' },
+      cordis: { name: 'preset.cordis', description: 'preset.cordisDescription' },
     };
 
     function createPresetStore(ctx) {
@@ -64,19 +57,15 @@ window.__ModuleLoader__.load({
       return { store, load };
     }
 
-    function usePresetState(store) {
-      return ui.useStore(store);
-    }
-
     function presetDisplay(option, t) {
       if (option?.name !== undefined && option.name !== '') return option.name;
-      const key = option === undefined ? undefined : BUILTIN_NAMES[option.id];
+      const key = option === undefined ? undefined : BUILTINS[option.id]?.name;
       return key === undefined ? (option?.id ?? '') : t(key);
     }
 
     function presetDescription(option, t) {
       if (option?.description !== undefined && option.description !== '') return option.description;
-      const key = option === undefined ? undefined : BUILTIN_DESCRIPTIONS[option.id];
+      const key = option === undefined ? undefined : BUILTINS[option.id]?.description;
       return key === undefined ? undefined : t(key);
     }
 
@@ -117,7 +106,6 @@ window.__ModuleLoader__.load({
 
     return {
       createPresetStore,
-      usePresetState,
       presetDisplay,
       presetDescription,
       defaultPresetId,

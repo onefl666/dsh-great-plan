@@ -103,123 +103,18 @@ function materialize(fileName) {
   modules[fileName] = registration.factory(require);
 }
 
-await import('../client.ui.js');
-await import('../client.settings.js');
-await import('../client.model.js');
-await import('../client.preset.js');
-await import('../client.actions.js');
-await import('../client.panel.js');
+await import('../../client.ui.js');
+await import('../../client.settings.js');
+await import('../../client.model.js');
+await import('../../client.preset.js');
+await import('../../client.actions.js');
+await import('../../client.panel.js');
 materialize('client.ui.js');
 materialize('client.settings.js');
 materialize('client.model.js');
 materialize('client.preset.js');
 materialize('client.actions.js');
 
-const actionsModule = modules['client.actions.js'];
-
-/**
- * Contract-faithful stand-ins for the WS-A helpers while that workstream is
- * still landing; the real exports win as soon as they exist, so these tests
- * exercise the frozen interface in both states.
- */
-const ACTION_ERROR_CODES = [
-  'emptyPlan',
-  'reviewGone',
-  'createSessionFailed',
-  'modelApplyFailed',
-  'startSessionFailed',
-  'openSessionFailed',
-  'dismissFailed',
-  'cleanupFailed',
-];
-
-function stubActionHelpers() {
-  if (typeof actionsModule.planPreviewText !== 'function') {
-    actionsModule.planPreviewText = (plan) => {
-      if (typeof plan !== 'string' || plan.trim() === '') return { preview: '', chars: 0 };
-      const lines = plan.split(/\r?\n/);
-      let index = 0;
-      while (index < lines.length && lines[index].trim() === '') index += 1;
-      let heading = '';
-      if (index < lines.length && /^#{1,6}\s/.test(lines[index].trim())) {
-        heading = lines[index].trim().replace(/^#+\s*/, '');
-        index += 1;
-      }
-      const paragraph = [];
-      while (index < lines.length && lines[index].trim() !== '' && !/^#{1,6}\s/.test(lines[index].trim())) {
-        paragraph.push(lines[index].trim());
-        index += 1;
-      }
-      const stripped = `${heading}${paragraph.length === 0 ? '' : `\n${paragraph.join(' ')}`}`
-        .replace(/\*\*|__|`/g, '')
-        .replace(/[*_]/g, '')
-        .trim();
-      const preview = stripped.length > 240 ? `${stripped.slice(0, 240)}…` : stripped;
-      return { preview, chars: plan.length };
-    };
-  }
-  if (typeof actionsModule.describeActionError !== 'function') {
-    actionsModule.describeActionError = (t, error) => {
-      if (error === null || error === undefined || typeof error !== 'object') return undefined;
-      if (typeof error.code !== 'string' || !ACTION_ERROR_CODES.includes(error.code)) return undefined;
-      return t(`error.${error.code}`, { message: error.message ?? String(error) });
-    };
-  }
-  if (typeof actionsModule.describeCompactFailure !== 'function') {
-    actionsModule.describeCompactFailure = (_t, message) => message;
-  }
-  if (typeof actionsModule.describeFreshPrompt !== 'function') {
-    actionsModule.describeFreshPrompt = (input = {}) => {
-      const { plan, t, presetId, instructions, workspaceDirectory, runtimeFacts, switches } = input;
-      const values = switches ?? {};
-      const all = Array.isArray(instructions)
-        ? instructions.filter((text) => typeof text === 'string' && text.trim() !== '')
-        : [];
-      let text = '';
-      try {
-        text = actionsModule.composeFreshPrompt({
-          plan,
-          t,
-          presetId,
-          instructions: all,
-          workspaceDirectory,
-          runtimeFacts,
-          switches: values,
-        });
-      } catch {
-        text = '';
-      }
-      const includeInstructions = values.includeOriginalInstructions !== false && all.length > 0;
-      const includeRuntime = values.includeMinimalContext !== false && presetId === 'minimal';
-      const blocks = [
-        { id: 'intro', titleKey: 'preview.block.intro', included: true, chars: 0 },
-        { id: 'budget', titleKey: 'preview.block.budget', included: values.unlimitedBudget !== false, chars: 0 },
-        { id: 'runtime', titleKey: 'preview.block.runtime', included: includeRuntime, chars: 0 },
-        {
-          id: 'instructions',
-          titleKey: 'preview.block.instructions',
-          included: includeInstructions,
-          chars: 0,
-          count: includeInstructions ? all.length : 0,
-        },
-        { id: 'plan', titleKey: 'preview.block.plan', included: true, chars: 0 },
-        { id: 'approved', titleKey: 'preview.block.approved', included: true, chars: 0 },
-      ];
-      const totalChars = text.length;
-      return {
-        text,
-        blocks,
-        instructionCount: all.length,
-        instructionChars: all.reduce((sum, item) => sum + item.length, 0),
-        totalChars,
-        approxTokens: Math.ceil(totalChars / 3.5),
-        oversized: totalChars > 32000,
-      };
-    };
-  }
-}
-
-stubActionHelpers();
 materialize('client.panel.js');
 
 const ui = modules['client.ui.js'];
@@ -1087,16 +982,6 @@ test('GreatPlanSection renders all four accessible switches and reflects the con
     'settings.originalInstructions.title',
     'settings.minimalContext.title',
   ]);
-
-  const readers = modules['client.settings.js'];
-  assert.equal(readers.readBrainstormingValue({ status: 'ready', value: { injectBrainstormingPrompt: false } }), false);
-  assert.equal(readers.readBrainstormingValue({ status: 'ready', value: {} }), true);
-  assert.equal(readers.readBudgetValue({ status: 'ready', value: { injectUnlimitedBudgetPrompt: false } }), false);
-  assert.equal(readers.readBudgetValue({ status: 'ready', value: {} }), true);
-  assert.equal(readers.readOriginalInstructionsValue({ status: 'ready', value: { includeOriginalUserInstructions: false } }), false);
-  assert.equal(readers.readOriginalInstructionsValue({ status: 'ready', value: {} }), true);
-  assert.equal(readers.readMinimalContextValue({ status: 'ready', value: { includeMinimalRuntimeContext: false } }), false);
-  assert.equal(readers.readMinimalContextValue({ status: 'ready', value: {} }), true);
 });
 
 test('GreatPlanSection shows the unavailable copy when no form is supplied', () => {
@@ -1105,26 +990,14 @@ test('GreatPlanSection shows the unavailable copy when no form is supplied', () 
   assert.equal(findElements(section, (child) => child.props?.role === 'switch').length, 0);
 });
 
-test('readBudgetSwitch reads the shared configuration mirror with a safe default', () => {
-  const readBudgetSwitch = modules['client.settings.js'].readBudgetSwitch;
-  const formOf = (snapshot) => ({ get: () => ({ getSnapshot: () => snapshot }) });
-
-  assert.equal(readBudgetSwitch(undefined), true);
-  assert.equal(readBudgetSwitch(formOf({ status: 'ready', value: { injectUnlimitedBudgetPrompt: true } })), true);
-  assert.equal(readBudgetSwitch(formOf({ status: 'ready', value: { injectUnlimitedBudgetPrompt: false } })), false);
-  assert.equal(readBudgetSwitch(formOf({ status: 'ready', value: {} })), true);
-  assert.equal(readBudgetSwitch(formOf({ status: 'loading', value: undefined })), true);
-  assert.equal(readBudgetSwitch({ get: () => { throw new Error('no form'); } }), true);
-  assert.equal(readBudgetSwitch({ get: () => ({ getSnapshot: () => { throw new Error('no snapshot'); } }) }), true);
-});
-
-test('readFreshPromptSwitches reads all three fresh-session switches from one snapshot', () => {
+test('readFreshPromptSwitches reads the shared configuration mirror with a safe default', () => {
   const readFreshPromptSwitches = modules['client.settings.js'].readFreshPromptSwitches;
   const formOf = (snapshot) => ({ get: () => ({ getSnapshot: () => snapshot }) });
   const allOn = { unlimitedBudget: true, includeOriginalInstructions: true, includeMinimalContext: true };
   const allOff = { unlimitedBudget: false, includeOriginalInstructions: false, includeMinimalContext: false };
 
   assert.deepEqual(readFreshPromptSwitches(undefined), allOn);
+  assert.deepEqual(readFreshPromptSwitches(null), allOn);
   assert.deepEqual(readFreshPromptSwitches(formOf({ status: 'loading', value: undefined })), allOn);
   assert.deepEqual(readFreshPromptSwitches(formOf({ status: 'ready', value: {} })), allOn);
   assert.deepEqual(readFreshPromptSwitches(formOf({
@@ -1136,6 +1009,7 @@ test('readFreshPromptSwitches reads all three fresh-session switches from one sn
     },
   })), allOff);
   assert.deepEqual(readFreshPromptSwitches({ get: () => { throw new Error('no form'); } }), allOn);
+  assert.deepEqual(readFreshPromptSwitches({ get: () => ({ getSnapshot: () => { throw new Error('no snapshot'); } }) }), allOn);
 });
 
 test('GreatPlanSection hides the switches while the form is loading', () => {

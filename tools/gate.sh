@@ -3,7 +3,7 @@
 #
 #   bash tools/gate.sh     # exit 0 = green
 #
-# Green proves: every JS file parses, and all node:test host tests pass.
+# Green proves: every JS file parses, and all node:test offline test suites pass.
 # It does NOT prove: real DSH Host/Client wiring, slot props, model catalog
 # behavior, compaction backend behavior, session creation, locale switching,
 # or rendered UI (see AGENTS.md "Gate" blind spots). Those need the GUI
@@ -45,6 +45,6 @@ for file in index.js host/*.js client*.js; do
 done
 
 echo 'gate: G-TEST'
-"$NODE" --test test/*.test.js
+"$NODE" --test test/*.test.js test/host/*.test.js test/client/*.test.js
 
 echo 'gate: green'

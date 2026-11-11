@@ -1,3 +1,6 @@
+/** The plan-review tool call that marks the pending plan review surface node. */
+export const EXIT_PLAN_MODE_TOOL = 'exit_plan_mode';
+
 /**
  * Pure plan-compaction range selection.
  *
@@ -7,9 +10,9 @@
  * node before that review, snapping backwards until the tool pairing holds.
  */
 export function selectPlanCompactionRange(session, balancedAfter, options = {}) {
-  const planReviewTool = typeof options?.planReviewTool === 'string'
+  const planReviewTool = typeof options.planReviewTool === 'string'
     ? options.planReviewTool
-    : 'exit_plan_mode';
+    : EXIT_PLAN_MODE_TOOL;
   const nodes = session.surface.nodes;
   if (nodes.length === 0) return { error: 'empty' };
   const last = session.eventAt(nodes[nodes.length - 1]);

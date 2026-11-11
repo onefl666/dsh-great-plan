@@ -5,7 +5,8 @@ export function apply(ctx, config) {
   ctx.inject(['commands'], (scope) => {
     return scope.commands.register(createCompactCommand({
       getProjections: () => ctx.get('sessionProjections'),
-      getCompaction: () => ctx.get('compaction'),
+      getCompaction: (agent) => ctx.get('compaction'),
+      getAgentPresets: () => ctx.get('agentPresets'),
       getBalancedAfter: async () => (await import('@deepseek-ai/dsh-compaction')).toolPairingBalancedAfter,
     }));
   });

@@ -323,7 +323,6 @@ window.__ModuleLoader__.load({
       },
       h('input', {
         type: 'checkbox',
-        className: 'gp-check-input',
         checked: checked === true,
         disabled,
         onChange: (event) => {
@@ -331,7 +330,7 @@ window.__ModuleLoader__.load({
         },
       }),
       h('span', { className: 'gp-check-copy' },
-        h('span', { className: 'gp-check-label' }, label),
+        h('span', null, label),
         hint === undefined || hint === null ? null : h('span', { className: 'gp-check-hint' }, hint),
       ),
       );
@@ -406,7 +405,6 @@ window.__ModuleLoader__.load({
       }, [open, anchorRef, panelRef, setPosition]);
     }
 
-    /** Collect the panel's focusable elements in DOM order. */
     function focusableIn(panel) {
       if (panel === null || panel === undefined || typeof panel.querySelectorAll !== 'function') return [];
       return [...panel.querySelectorAll('button:not([disabled]),input:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')]
@@ -504,15 +502,12 @@ window.__ModuleLoader__.load({
       useStore,
       createStore,
       IconSliders,
-      IconChevronRight,
       IconChevronDown,
       IconChevronLeft,
       IconClose,
-      IconCheck,
       IconPlay,
       IconCompress,
       IconNewSession,
-      IconWarning,
       IconButton,
       Button,
       ActionRow,
@@ -526,7 +521,6 @@ window.__ModuleLoader__.load({
       WarningText,
       WarningBox,
       Loading,
-      focusableIn,
       handleDialogKeyDown,
       Dialog,
     };

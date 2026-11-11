@@ -12,10 +12,8 @@ window.__ModuleLoader__.load({
      */
     const FRESH_PROMPT_INTRO = 'Execute the approved plan below in this fresh session. Do not re-plan or repeat its investigation: reuse its evidence, and first verify anything it marks as unverified or assumed.';
 
-    /** Model-facing reminder appended to fresh-session execution when the budget switch is on. */
     const UNLIMITED_BUDGET_REMINDER = 'Token budget: unlimited. Never cut investigation, tool calls, or needed questions to save tokens; keep the final summary concise.';
 
-    /** Model-facing heading above the carried plan-mode user messages. */
     const PLAN_MODE_INSTRUCTIONS_HEADING = 'User messages from plan mode, oldest first (context for the plan):';
 
     /** Model-facing note that always closes the Minimal runtime context. */
@@ -69,18 +67,6 @@ window.__ModuleLoader__.load({
       'The /great-plan-compact command is not available.': 'compact.error.unavailable',
     };
 
-    /** Stable action failure codes; each one has a `t('error.<code>')` locale key. */
-    const ACTION_ERROR_CODES = [
-      'emptyPlan',
-      'reviewGone',
-      'createSessionFailed',
-      'modelApplyFailed',
-      'startSessionFailed',
-      'openSessionFailed',
-      'dismissFailed',
-      'cleanupFailed',
-    ];
-
     /** English fallback messages for action failures; the Client localizes them. */
     const ACTION_ERROR_MESSAGES = {
       emptyPlan: 'The reviewed plan is empty.',
@@ -93,16 +79,35 @@ window.__ModuleLoader__.load({
       cleanupFailed: 'The unused new session could not be cleaned up: {message}',
     };
 
-    /** Cached `Intl.DateTimeFormat` instances keyed by `<kind>|<zone>`. */
+    /** Stable action failure codes; each one has a `t('error.<code>')` locale key. */
+    const ACTION_ERROR_CODES = Object.keys(ACTION_ERROR_MESSAGES);
+
     const INTL_FORMATTERS = new Map();
 
-    /** Fill `{name}` placeholders in one English template. */
     function formatTemplate(template, params) {
       if (params === null || typeof params !== 'object') return template;
       return Object.entries(params).reduce(
-        (text, [name, value]) => text.replaceAll(`{${name}}`, String(value)),
+        (text, [name, value]) => text.replaceAll(`{${name}}`, () => String(value)),
         template,
       );
+    }
+
+    function formatRpcFailure(failure) {
+      try {
+        const candidate = failure !== null && typeof failure === 'object' ? failure : {};
+        const detail = candidate.message === undefined
+          && candidate.code === undefined
+          && candidate.error !== null
+          && typeof candidate.error === 'object'
+          ? candidate.error
+          : candidate;
+        const message = typeof detail.message === 'string' && detail.message !== '' ? detail.message : '';
+        const code = typeof detail.code === 'string' && detail.code !== '' ? detail.code : '';
+        if (message !== '') return code === '' ? message : `${message} (${code})`;
+        return code === '' ? 'unknown error' : `unknown error (${code})`;
+      } catch {
+        return 'unknown error';
+      }
     }
 
     /**
@@ -193,7 +198,6 @@ window.__ModuleLoader__.load({
       return { unlimitedBudget: true, includeOriginalInstructions: true, includeMinimalContext: true };
     }
 
-    /** Join the text blocks of one user message. */
     function textOf(content) {
       if (typeof content === 'string') return content.trim();
       if (!Array.isArray(content)) return '';
@@ -204,7 +208,6 @@ window.__ModuleLoader__.load({
         .trim();
     }
 
-    /** Whether one session event belongs to the real user rather than an injected context. */
     function isUserMessage(event) {
       if (event === null || typeof event !== 'object' || event.type !== 'user/message') return false;
       const kind = event.data?.source?.kind;
@@ -237,7 +240,6 @@ window.__ModuleLoader__.load({
       return commandStart;
     }
 
-    /** Locate the latest turn start; used only when no plan-mode marker is loaded. */
     function findTurnStart(entries) {
       let turnStart;
       for (let index = 0; index < entries.length; index += 1) {
@@ -271,7 +273,6 @@ window.__ModuleLoader__.load({
       return [];
     }
 
-    /** Trim, drop empty and non-string instruction texts while keeping the order. */
     function normalizeInstructionTexts(instructions) {
       if (!Array.isArray(instructions)) return [];
       return instructions
@@ -279,7 +280,6 @@ window.__ModuleLoader__.load({
         .filter((text) => text !== '');
     }
 
-    /** Render the original-instructions block; empty when nothing is carried. */
     function buildInstructionBlock(texts) {
       if (texts.length === 0) return '';
       return `${PLAN_MODE_INSTRUCTIONS_HEADING}\n\n<${PLAN_MODE_INSTRUCTIONS_TAG}>\n${texts.join(INSTRUCTIONS_SEPARATOR)}\n</${PLAN_MODE_INSTRUCTIONS_TAG}>\n\n`;
@@ -351,7 +351,6 @@ window.__ModuleLoader__.load({
       return undefined;
     }
 
-    /** Resolve the browser time zone, falling back to UTC. */
     function resolveTimeZone() {
       try {
         const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -382,7 +381,6 @@ window.__ModuleLoader__.load({
       return formatter;
     }
 
-    /** Parse the numeric offset of a zone at one instant. */
     function offsetMinutesOf(zone, date) {
       try {
         const name = formatterOf('offset', zone)
@@ -413,7 +411,6 @@ window.__ModuleLoader__.load({
       }
     }
 
-    /** Read the current browser-side runtime facts used by the minimal context. */
     function readRuntimeFacts(options = {}) {
       try {
         const nav = options.nav === undefined ? globalThis.navigator : options.nav;
@@ -425,7 +422,6 @@ window.__ModuleLoader__.load({
       }
     }
 
-    /** Build the compact fresh-session environment block for Minimal mode. */
     function buildMinimalRuntimeContext({ workspaceDirectory, system, time } = {}) {
       const lines = [];
       const directory = typeof workspaceDirectory === 'string' ? workspaceDirectory.trim() : '';
@@ -441,10 +437,8 @@ window.__ModuleLoader__.load({
     /**
      * Resolve every part of the fresh-session first message from the switches.
      *
-     * This is the single funnel shared by `composeFreshPrompt`,
-     * `describeFreshPrompt`, and (through `assembleFreshPrompt`) the legacy
-     * `buildPlanExecutionPrompt`, so the preview text and the sent text cannot
-     * drift apart.
+     * The single funnel shared by `composeFreshPrompt` and `describeFreshPrompt`,
+     * so the preview text and the sent text cannot drift apart.
      */
     function resolveFreshPromptParts({
       plan,
@@ -499,32 +493,6 @@ window.__ModuleLoader__.load({
       };
     }
 
-    /**
-     * Compose the legacy execution prompt from explicit parts.
-     *
-     * Funnels through the shared assembler. The second positional argument
-     * (formerly the translator) is kept for call compatibility and ignored:
-     * model-facing text is fixed English.
-     */
-    function buildPlanExecutionPrompt(plan, _t, options = {}) {
-      const config = typeof options === 'boolean' ? { unlimitedBudget: options } : (options ?? {});
-      const planBody = typeof plan === 'string' ? plan.trim() : '';
-      if (planBody === '') throw new ActionError('emptyPlan');
-      const intro = FRESH_PROMPT_INTRO;
-      const budget = config.unlimitedBudget === false ? '' : `${UNLIMITED_BUDGET_REMINDER}\n\n`;
-      const runtimeContext = typeof config.runtimeContext === 'string' && config.runtimeContext.trim() !== ''
-        ? `${config.runtimeContext.trim()}\n\n`
-        : '';
-      return assembleFreshPrompt({
-        intro,
-        budget,
-        runtimeContext,
-        carriedInstructions: normalizeInstructionTexts(config.instructions),
-        planBody,
-      }).text;
-    }
-
-    /** Compose one fresh-session prompt from the preset and switch state. */
     function composeFreshPrompt(args = {}) {
       return assembleFreshPrompt(resolveFreshPromptParts(args)).text;
     }
@@ -592,7 +560,6 @@ window.__ModuleLoader__.load({
       };
     }
 
-    /** Remove inline markdown emphasis and code markers from one preview line. */
     function stripInlineMarkup(text) {
       return text
         .replace(/`+/g, '')
@@ -601,12 +568,10 @@ window.__ModuleLoader__.load({
         .replace(/[*_]/g, '');
     }
 
-    /** Collapse every whitespace run to one space and trim. */
     function collapseWhitespace(text) {
       return text.replace(/\s+/g, ' ').trim();
     }
 
-    /** Whether one line is an ATX markdown heading. */
     function isHeadingLine(line) {
       return /^\s{0,3}#{1,6}\s+\S/.test(line);
     }
@@ -702,10 +667,11 @@ window.__ModuleLoader__.load({
         const result = await ctx.remote.commands.execute(sessionId, COMPACT_COMMAND, [], signal);
         if (!result?.ok) {
           const failure = result?.error;
-          const message = failure !== undefined && failure !== null
-            ? `${failure.message} (${failure.code})`
-            : 'The /great-plan-compact command failed.';
-          const code = typeof failure?.code === 'string' ? failure.code : undefined;
+          if (failure === undefined || failure === null) {
+            return { ok: false, message: 'The /great-plan-compact command failed.' };
+          }
+          const code = typeof failure.code === 'string' ? failure.code : undefined;
+          const message = formatRpcFailure(failure);
           return code === undefined ? { ok: false, message } : { ok: false, message, code };
         }
         if (result.value === undefined) return { ok: false, message: COMPACT_UNAVAILABLE_MESSAGE };
@@ -892,7 +858,7 @@ window.__ModuleLoader__.load({
               throw new ActionError('modelApplyFailed', { message: messageOf(error) });
             }
             if (!selected?.ok) {
-              throw new ActionError('modelApplyFailed', { message: rpcFailureMessage(selected) });
+              throw new ActionError('modelApplyFailed', { message: formatRpcFailure(selected) });
             }
           })();
           await Promise.all([renameTask, selectionTask]);
@@ -908,7 +874,7 @@ window.__ModuleLoader__.load({
             throw new ActionError('startSessionFailed', { message: messageOf(error) });
           }
           if (!prompt?.ok) {
-            throw new ActionError('startSessionFailed', { message: rpcFailureMessage(prompt) });
+            throw new ActionError('startSessionFailed', { message: formatRpcFailure(prompt) });
           }
         });
       } catch (error) {
@@ -949,13 +915,6 @@ window.__ModuleLoader__.load({
       return { sessionId: newSessionId, cancelError };
     }
 
-    /** Render one RPC failure detail as `message (code)`. */
-    function rpcFailureMessage(result) {
-      const detail = result?.error;
-      if (detail === undefined || detail === null) return 'unknown error';
-      return `${detail.message} (${detail.code})`;
-    }
-
     function createActions(ctx, sessionId, readPromptSwitches) {
       return {
         approveReview,
@@ -968,13 +927,11 @@ window.__ModuleLoader__.load({
     }
 
     return {
-      messageOf,
       FRESH_PROMPT_INTRO,
       UNLIMITED_BUDGET_REMINDER,
       PLAN_MODE_INSTRUCTIONS_HEADING,
       PLAN_APPROVED_HANDOFF,
       PLAN_MODE_INSTRUCTIONS_TAG,
-      FRESH_SESSION_CONTEXT_TAG,
       FRESH_PROMPT_WARN_CHARS,
       ACTION_ERROR_CODES,
       ACTION_ERROR_MESSAGES,
@@ -985,13 +942,11 @@ window.__ModuleLoader__.load({
       describeFreshPrompt,
       planPreviewText,
       normalizePromptSwitches,
-      textOf,
       findPlanModeStart,
       findTurnStart,
       collectPlanModeInstructions,
       readPlanModeInstructions,
       readSystemName,
-      resolveTimeZone,
       formatTimestamp,
       readRuntimeFacts,
       buildMinimalRuntimeContext,
@@ -1002,7 +957,7 @@ window.__ModuleLoader__.load({
       createFreshExecution,
       createActions,
       composeFreshTitle,
-      buildPlanExecutionPrompt,
+      formatRpcFailure,
     };
   },
 });

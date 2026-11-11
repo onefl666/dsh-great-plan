@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { apply } from '../host/apply.js';
+import { apply } from '../../host/apply.js';
 import {
   PLAN_BRAINSTORMING_GUIDANCE,
   PLAN_EVIDENCE_GUIDANCE,
@@ -10,12 +10,11 @@ import {
   PLAN_HANDOFF_GUIDANCE,
   PLAN_UNLIMITED_BUDGET_GUIDANCE,
   composePlanGuidance,
-  planEvidenceText,
   readBrainstormingEnabled,
   readPlanModeActive,
   readUnlimitedBudgetEnabled,
   registerPlanEvidenceSection,
-} from '../host/plan-evidence.js';
+} from '../../host/plan-evidence.js';
 
 const AGENT = { session: { id: 'session-1' } };
 
@@ -120,16 +119,21 @@ test('the fully enabled composition is the shared module constant', () => {
   assert.equal(composePlanGuidance({ brainstorming: true }), PLAN_EVIDENCE_GUIDANCE);
   assert.equal(composePlanGuidance({ unlimitedBudget: true }), PLAN_EVIDENCE_GUIDANCE);
   assert.equal(composePlanGuidance({ brainstorming: true, unlimitedBudget: true }), PLAN_EVIDENCE_GUIDANCE);
-  assert.equal(planEvidenceText(planModeOf({ active: true }), AGENT, true, true), PLAN_EVIDENCE_GUIDANCE);
-  assert.equal(planEvidenceText(planModeOf({ active: true, pending: true }), AGENT, true, true), PLAN_EVIDENCE_GUIDANCE);
   assert.equal(sectionText(() => planModeOf({ active: true })), PLAN_EVIDENCE_GUIDANCE);
   assert.notEqual(composePlanGuidance({ brainstorming: false }), PLAN_EVIDENCE_GUIDANCE);
   assert.notEqual(composePlanGuidance({ unlimitedBudget: false }), PLAN_EVIDENCE_GUIDANCE);
 });
 
-function sectionText(getPlanMode) {
+function switches(brainstorming, unlimitedBudget) {
+  return {
+    injectBrainstormingPrompt: { get: () => brainstorming },
+    injectUnlimitedBudgetPrompt: { get: () => unlimitedBudget },
+  };
+}
+
+function sectionText(getPlanMode, config) {
   const systemPrompt = createSystemPrompt();
-  registerPlanEvidenceSection({ systemPrompt, getPlanMode });
+  registerPlanEvidenceSection({ systemPrompt, getPlanMode, getConfig: () => config });
   return systemPrompt.sections[0].text({ agent: AGENT });
 }
 
@@ -174,6 +178,12 @@ test('readPlanModeActive honors a pending selection over the logged state', () =
   assert.equal(readPlanModeActive(scopedAgent({ active: true, pending: false })), false);
 });
 
+test('readPlanModeActive coerces a non-boolean pending value to false', () => {
+  assert.equal(readPlanModeActive(scopedAgent({ active: false, pending: 'yes' })), false);
+  assert.equal(readPlanModeActive(AGENT, () => ({ get: () => ({ active: false, pending: 1 }) })), false);
+  assert.equal(readPlanModeActive(AGENT, undefined, () => projectionsOf({ active: false, pending: 'yes' })), false);
+});
+
 test('readPlanModeActive falls back to the host planMode without a scoped service', () => {
   assert.equal(readPlanModeActive(AGENT, () => ({ get: () => ({ active: true }) })), true);
   assert.equal(readPlanModeActive(AGENT, () => ({ get: () => ({ active: false }) })), false);
@@ -214,18 +224,19 @@ test('composePlanGuidance omits each disabled part and always keeps the handoff'
 });
 
 test('turning each switch off keeps the remaining guidance and the plan-mode gate', () => {
+  const active = () => planModeOf({ active: true });
   assert.equal(
-    planEvidenceText(planModeOf({ active: true }), AGENT, false, true),
+    sectionText(active, switches(false, true)),
     `${PLAN_UNLIMITED_BUDGET_GUIDANCE}\n\n${PLAN_HANDOFF_GUIDANCE}`,
   );
   assert.equal(
-    planEvidenceText(planModeOf({ active: true }), AGENT, true, false),
+    sectionText(active, switches(true, false)),
     `${PLAN_BRAINSTORMING_GUIDANCE}\n\n${PLAN_HANDOFF_GUIDANCE}`,
   );
-  assert.equal(planEvidenceText(planModeOf({ active: true }), AGENT, false, false), PLAN_HANDOFF_GUIDANCE);
-  assert.equal(planEvidenceText(planModeOf({ active: false }), AGENT, false, false), '');
-  assert.equal(planEvidenceText(planModeOf({ active: true, pending: false }), AGENT, false, false), '');
-  assert.equal(planEvidenceText(planModeOf({ active: false, pending: true }), AGENT, false, false), PLAN_HANDOFF_GUIDANCE);
+  assert.equal(sectionText(active, switches(false, false)), PLAN_HANDOFF_GUIDANCE);
+  assert.equal(sectionText(() => planModeOf({ active: false }), switches(false, false)), '');
+  assert.equal(sectionText(() => planModeOf({ active: true, pending: false }), switches(false, false)), '');
+  assert.equal(sectionText(() => planModeOf({ active: false, pending: true }), switches(false, false)), PLAN_HANDOFF_GUIDANCE);
 });
 
 test('reads the brainstorming switch from live or plain config values', () => {
@@ -275,27 +286,31 @@ test('reads the unlimited-budget switch from live or plain config values', () =>
 });
 
 test('active plan mode renders the guidance and inactive plan mode renders nothing', () => {
-  assert.equal(planEvidenceText(planModeOf({ active: true }), AGENT), PLAN_EVIDENCE_GUIDANCE);
-  assert.equal(planEvidenceText(planModeOf({ active: false }), AGENT), '');
+  assert.equal(sectionText(() => planModeOf({ active: true })), PLAN_EVIDENCE_GUIDANCE);
+  assert.equal(sectionText(() => planModeOf({ active: false })), '');
 });
 
 test('a pending selection wins over the logged state, matching plan:policy', () => {
-  assert.equal(planEvidenceText(planModeOf({ active: false, pending: true }), AGENT), PLAN_EVIDENCE_GUIDANCE);
-  assert.equal(planEvidenceText(planModeOf({ active: true, pending: false }), AGENT), '');
+  assert.equal(sectionText(() => planModeOf({ active: false, pending: true })), PLAN_EVIDENCE_GUIDANCE);
+  assert.equal(sectionText(() => planModeOf({ active: true, pending: false })), '');
 });
 
 test('missing services, agents, or state degrade to empty text', () => {
-  assert.equal(planEvidenceText(undefined, AGENT), '');
-  assert.equal(planEvidenceText(null, AGENT), '');
-  assert.equal(planEvidenceText({}, AGENT), '');
-  assert.equal(planEvidenceText({ get: () => ({ active: true }) }, undefined), '');
-  assert.equal(planEvidenceText({ get: () => ({ active: true }) }, null), '');
-  assert.equal(planEvidenceText({ get: () => undefined }, AGENT), '');
-  assert.equal(planEvidenceText({
+  assert.equal(sectionText(undefined), '');
+  assert.equal(sectionText(() => undefined), '');
+  assert.equal(sectionText(() => ({ get: () => undefined })), '');
+  assert.equal(sectionText(() => ({
     get() {
       throw new Error('plan projection is unavailable');
     },
-  }, AGENT), '');
+  })), '');
+
+  const systemPrompt = createSystemPrompt();
+  registerPlanEvidenceSection({ systemPrompt, getPlanMode: () => planModeOf({ active: true }) });
+  const [section] = systemPrompt.sections;
+  assert.equal(section.text({}), '');
+  assert.equal(section.text(), '');
+  assert.equal(section.text({ agent: null }), '');
 });
 
 test('registers great-plan:plan-evidence right after the native plan policy', () => {

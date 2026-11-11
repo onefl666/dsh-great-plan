@@ -1,7 +1,7 @@
-import { selectPlanCompactionRange } from './plan-range.js';
+import { EXIT_PLAN_MODE_TOOL, selectPlanCompactionRange } from './plan-range.js';
 
-/** The plan-review tool call that marks the pending plan review surface node. */
-export const EXIT_PLAN_MODE_TOOL = 'exit_plan_mode';
+// The canonical name lives in plan-range.js; re-exported for existing importers.
+export { EXIT_PLAN_MODE_TOOL };
 
 /** The command accepts no arguments; this is its user-visible usage line. */
 export const USAGE = 'Usage: /great-plan-compact (no arguments)';
@@ -38,20 +38,59 @@ function messageOf(error) {
   return error instanceof Error ? error.message : String(error);
 }
 
-export function createCompactCommand({ getProjections, getCompaction, getBalancedAfter }) {
+/**
+ * Resolve the composed compaction service for one agent.
+ *
+ * Presets isolate their mounted services, so the agent's preset group owns its
+ * `compaction` instance while the host-plane read only sees globally mounted
+ * compositions. The agent-scoped context is the middle step; the preset
+ * registry is the authoritative source when it exposes the service.
+ *
+ * @param {object | undefined} agent the agent executing the command.
+ * @param {object} [accessors] service readers supplied by the composition.
+ * @param {() => object | undefined} [accessors.getAgentPresets] host-plane preset registry reader.
+ * @param {(agent: object | undefined) => object | undefined} [accessors.getCompaction] host-plane compaction reader.
+ * @returns {object | undefined} the first service that exposes `compactRegion`.
+ */
+export function resolveCompactionService(agent, { getAgentPresets, getCompaction } = {}) {
+  if (agent !== undefined && agent !== null) {
+    // 1. The service mounted in the agent's preset group.
+    try {
+      const scoped = typeof getAgentPresets === 'function'
+        ? getAgentPresets()?.serviceFor?.(agent, 'compaction')
+        : undefined;
+      if (scoped?.compactRegion !== undefined) return scoped;
+    } catch {
+      // An absent or unreadable preset registry falls through.
+    }
+    // 2. The service mounted in the agent's scoped context.
+    try {
+      const scoped = agent?.ctx?.get?.('compaction');
+      if (scoped?.compactRegion !== undefined) return scoped;
+    } catch {
+      // An unreadable scoped context falls through.
+    }
+  }
+  // 3. The host-plane service; a throwing read stays visible to the caller.
+  const fallback = typeof getCompaction === 'function' ? getCompaction(agent) : undefined;
+  return fallback?.compactRegion !== undefined ? fallback : undefined;
+}
+
+export function createCompactCommand({ getProjections, getCompaction, getBalancedAfter, getAgentPresets }) {
   return {
     name: 'great-plan-compact',
     description: 'Compact older plan history before executing (used by Great Plan).',
     async handler(invocation) {
-      const rawInput = typeof invocation?.rawInput === 'string' ? invocation.rawInput.trim() : '';
+      const args = invocation ?? {};
+      const rawInput = typeof args.rawInput === 'string' ? args.rawInput.trim() : '';
       if (rawInput !== '') return { kind: 'error', text: USAGE };
-      const { agent, signal } = invocation ?? {};
+      const { agent, signal } = args;
 
       let plan;
       try {
         const projections = getProjections();
-        if (projections?.stateOf === undefined) return { kind: 'error', text: MESSAGES.planStateUnavailable };
-        plan = projections.stateOf(agent.session, 'plan');
+        if (typeof projections?.snapshot !== 'function') return { kind: 'error', text: MESSAGES.planStateUnavailable };
+        plan = projections.snapshot(agent.session, ['plan'])?.values?.plan;
       } catch (error) {
         return { kind: 'error', text: `Plan state is unavailable: ${messageOf(error)}` };
       }
@@ -59,7 +98,7 @@ export function createCompactCommand({ getProjections, getCompaction, getBalance
 
       let compaction;
       try {
-        compaction = getCompaction();
+        compaction = resolveCompactionService(agent, { getAgentPresets, getCompaction });
       } catch (error) {
         return { kind: 'error', text: `Compaction is unavailable: ${messageOf(error)}` };
       }
@@ -89,7 +128,7 @@ export function createCompactCommand({ getProjections, getCompaction, getBalance
       } catch (error) {
         if (signal?.aborted) return { kind: 'error', text: FAILURES.cancelled };
         const code = typeof error?.code === 'string' ? error.code : undefined;
-        return { kind: 'error', text: (code !== undefined && FAILURES[code]) || messageOf(error) };
+        return { kind: 'error', text: Object.hasOwn(FAILURES, code) ? FAILURES[code] : messageOf(error) };
       }
     },
   };

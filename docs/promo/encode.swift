@@ -1,6 +1,6 @@
 // Encodes a PNG frame sequence (+ optional WAV) into an H.264/AAC MP4 with AVFoundation.
 //
-//   swiftc -O promo/encode.swift -o /tmp/gp-encode
+//   swiftc -O docs/promo/encode.swift -o /tmp/gp-encode
 //   /tmp/gp-encode <framesDir> <audio.wav|-> <out.mp4> [fps=30] [bitrate=12000000]
 import AVFoundation
 import CoreGraphics

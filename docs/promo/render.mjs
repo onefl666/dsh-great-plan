@@ -2,9 +2,9 @@
 // (Node 24 global WebSocket, no dependencies), seeks the timeline page frame by frame,
 // and writes PNG frames plus the procedural score as WAV.
 //
-//   node promo/render.mjs [--from 0] [--to <duration>] [--step 1] [--fps 30] [--frames promo/frames]
-//                         [--audio promo/out/audio.wav] [--no-audio] [--audio-only] [--times 2.5,14,30]
-//                         [--cover promo/out/cover.png [--variant a|b]]   (renders only a still cover)
+//   node docs/promo/render.mjs [--from 0] [--to <duration>] [--step 1] [--fps 30] [--frames docs/promo/frames]
+//                         [--audio docs/promo/out/audio.wav] [--no-audio] [--audio-only] [--times 2.5,14,30]
+//                         [--cover docs/promo/out/cover.png [--variant a|b]]   (renders only a still cover)
 import { spawn } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

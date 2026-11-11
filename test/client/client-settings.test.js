@@ -90,7 +90,7 @@ const fakeUi = {
   Button: 'mock-button',
 };
 
-await import('../client.settings.js');
+await import('../../client.settings.js');
 const registration = registry.get('client.settings.js');
 assert.equal(registration.id, '@onefl666/dsh-great-plan');
 
@@ -184,8 +184,16 @@ async function flush() {
   await Promise.resolve();
 }
 
-test('the settings chunk registers and keeps every read helper export', () => {
+test('the settings chunk registers and freezes its export surface', () => {
   assert.equal(registration.chunk, 'client.settings.js');
+  assert.deepEqual(Object.keys(settings).sort(), [
+    'FIELDS',
+    'GreatPlanForm',
+    'GreatPlanSection',
+    'ROWS',
+    'readFreshPromptSwitches',
+    'readSwitchValue',
+  ]);
   assert.deepEqual(settings.FIELDS, {
     brainstorming: 'injectBrainstormingPrompt',
     budget: 'injectUnlimitedBudgetPrompt',
@@ -198,21 +206,10 @@ test('the settings chunk registers and keeps every read helper export', () => {
     'includeOriginalUserInstructions',
     'includeMinimalRuntimeContext',
   ]);
-  for (const name of [
-    'readSwitchValue',
-    'readBrainstormingValue',
-    'readBudgetValue',
-    'readOriginalInstructionsValue',
-    'readMinimalContextValue',
-    'readBudgetSwitch',
-    'readOriginalInstructionsSwitch',
-    'readMinimalContextSwitch',
-    'readFreshPromptSwitches',
-    'GreatPlanSection',
-    'GreatPlanForm',
-  ]) {
-    assert.equal(typeof settings[name], 'function', `${name} must stay exported`);
-  }
+  assert.equal(typeof settings.readSwitchValue, 'function');
+  assert.equal(typeof settings.readFreshPromptSwitches, 'function');
+  assert.equal(typeof settings.GreatPlanSection, 'function');
+  assert.equal(typeof settings.GreatPlanForm, 'function');
   assert.notEqual(settings.GreatPlanSection, settings.GreatPlanForm);
 });
 
@@ -416,9 +413,10 @@ test('GreatPlanForm shows the read-only note and disables every control when unw
   assert.deepEqual(resetsOf(off).map((button) => button.props.disabled), [true]);
 });
 
-test('the switch-state readers keep the defaults-on fallbacks', () => {
-  const { readSwitchValue, readBudgetSwitch, readOriginalInstructionsSwitch, readMinimalContextSwitch, readFreshPromptSwitches } = settings;
+test('readSwitchValue and readFreshPromptSwitches keep the defaults-on fallbacks', () => {
+  const { readSwitchValue, readFreshPromptSwitches } = settings;
   assert.equal(readSwitchValue({ value: { injected: false } }, 'injected'), false);
+  assert.equal(readSwitchValue({ value: { injected: true } }, 'injected'), true);
   assert.equal(readSwitchValue({ value: {} }, 'injected'), true);
   assert.equal(readSwitchValue(undefined, 'injected'), true);
 
@@ -426,7 +424,9 @@ test('the switch-state readers keep the defaults-on fallbacks', () => {
   const allOn = { unlimitedBudget: true, includeOriginalInstructions: true, includeMinimalContext: true };
   const allOff = { unlimitedBudget: false, includeOriginalInstructions: false, includeMinimalContext: false };
   assert.deepEqual(readFreshPromptSwitches(undefined), allOn);
+  assert.deepEqual(readFreshPromptSwitches(null), allOn);
   assert.deepEqual(readFreshPromptSwitches(formOf({ status: 'loading', value: undefined })), allOn);
+  assert.deepEqual(readFreshPromptSwitches(formOf({ status: 'ready', value: {} })), allOn);
   assert.deepEqual(readFreshPromptSwitches(formOf({
     status: 'ready',
     value: {
@@ -435,11 +435,11 @@ test('the switch-state readers keep the defaults-on fallbacks', () => {
       includeMinimalRuntimeContext: false,
     },
   })), allOff);
+  assert.deepEqual(readFreshPromptSwitches(formOf({ status: 'ready', value: { injectUnlimitedBudgetPrompt: false } })), {
+    unlimitedBudget: false,
+    includeOriginalInstructions: true,
+    includeMinimalContext: true,
+  });
   assert.deepEqual(readFreshPromptSwitches({ get: () => { throw new Error('no form'); } }), allOn);
-  assert.equal(readBudgetSwitch(undefined), true);
-  assert.equal(readOriginalInstructionsSwitch(undefined), true);
-  assert.equal(readMinimalContextSwitch(undefined), true);
-  assert.equal(readBudgetSwitch(formOf({ status: 'ready', value: { injectUnlimitedBudgetPrompt: false } })), false);
-  assert.equal(readOriginalInstructionsSwitch(formOf({ status: 'ready', value: { includeOriginalUserInstructions: false } })), false);
-  assert.equal(readMinimalContextSwitch(formOf({ status: 'ready', value: { includeMinimalRuntimeContext: false } })), false);
+  assert.deepEqual(readFreshPromptSwitches({ get: () => ({ getSnapshot: () => { throw new Error('no snapshot'); } }) }), allOn);
 });

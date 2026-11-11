@@ -42,13 +42,13 @@ function materialize(fileName) {
   return modules[fileName];
 }
 
-await import('../client.ui.js');
-await import('../client.settings.js');
-await import('../client.model.js');
-await import('../client.preset.js');
-await import('../client.actions.js');
-await import('../client.panel.js');
-await import('../client.js');
+await import('../../client.ui.js');
+await import('../../client.settings.js');
+await import('../../client.model.js');
+await import('../../client.preset.js');
+await import('../../client.actions.js');
+await import('../../client.panel.js');
+await import('../../client.js');
 
 materialize('client.ui.js');
 materialize('client.settings.js');

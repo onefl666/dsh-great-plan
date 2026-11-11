@@ -46,11 +46,6 @@ export const PLAN_EVIDENCE_GUIDANCE = `${PLAN_UNLIMITED_BUDGET_GUIDANCE}\n\n${PL
  * section. Disabled parts are omitted entirely, never replaced by placeholders.
  * With every switch on the precomputed `PLAN_EVIDENCE_GUIDANCE` constant is
  * returned so the common path allocates nothing per prompt assembly.
- *
- * @param {object} [options]
- * @param {boolean} [options.brainstorming] whether the brainstorming paragraph is injected.
- * @param {boolean} [options.unlimitedBudget] whether the budget reminder is injected.
- * @returns {string} the assembled section text.
  */
 export function composePlanGuidance({ brainstorming = true, unlimitedBudget = true } = {}) {
   if (brainstorming !== false && unlimitedBudget !== false) return PLAN_EVIDENCE_GUIDANCE;
@@ -67,11 +62,6 @@ export function composePlanGuidance({ brainstorming = true, unlimitedBudget = tr
  * A volatile field arrives as a reference object; plain booleans are accepted
  * for tests and hand-written rows. Every missing, malformed, or unreadable
  * value keeps the fallback so prompt assembly never fails.
- *
- * @param {object | undefined} config the plugin config passed to `apply`.
- * @param {string} field the config field to read.
- * @param {boolean} fallback value used when the field is missing or unreadable.
- * @returns {boolean} the switch value.
  */
 function readConfigSwitch(config, field, fallback) {
   if (config === undefined || config === null || typeof config !== 'object') return fallback;
@@ -94,53 +84,35 @@ function readConfigSwitch(config, field, fallback) {
   return fallback;
 }
 
-/**
- * Read the brainstorming switch; defaults to enabled.
- *
- * @param {object | undefined} config the plugin config passed to `apply`.
- * @returns {boolean} whether the brainstorming guidance is injected.
- */
+/** Read the brainstorming switch; defaults to enabled. */
 export function readBrainstormingEnabled(config) {
   return readConfigSwitch(config, 'injectBrainstormingPrompt', true);
 }
 
-/**
- * Read the unlimited-token-budget switch; defaults to enabled.
- *
- * @param {object | undefined} config the plugin config passed to `apply`.
- * @returns {boolean} whether the budget reminder is injected.
- */
+/** Read the unlimited-token-budget switch; defaults to enabled. */
 export function readUnlimitedBudgetEnabled(config) {
   return readConfigSwitch(config, 'injectUnlimitedBudgetPrompt', true);
 }
 
 /**
- * Resolve the section text from the plan projection and both switches.
+ * Resolve one boolean-validated plan-mode state from a planMode-like service.
  *
- * Mirrors the native `plan:policy` gate: a pending selection wins over the
- * logged state, so both sections appear and disappear at the same step
- * boundary. Every missing or failing input returns empty text; prompt
- * assembly must never fail because plan state is unavailable.
- *
- * @param {object | undefined} planMode the Host plan projection service.
- * @param {object | undefined} agent the agent whose plan state is read.
- * @param {boolean} [brainstorming] whether the brainstorming paragraph is injected.
- * @param {boolean} [unlimitedBudget] whether the budget reminder is injected.
- * @returns {string} the section text, or empty when plan mode is inactive.
+ * A usable state exposes a boolean `active`; a pending selection overrides the
+ * logged state. Missing, malformed, or throwing reads return `undefined` so the
+ * caller can try its next source.
  */
-export function planEvidenceText(planMode, agent, brainstorming = true, unlimitedBudget = true) {
-  if (agent === undefined || agent === null) return '';
-  if (planMode === undefined || planMode === null || typeof planMode.get !== 'function') return '';
-  let state;
+function readPlanModeState(readService, agent) {
   try {
-    state = planMode.get(agent);
+    const service = readService();
+    if (service === undefined || service === null || typeof service.get !== 'function') return undefined;
+    const state = service.get(agent);
+    if (state !== undefined && state !== null && typeof state === 'object' && typeof state.active === 'boolean') {
+      return state.pending === undefined ? state.active : state.pending === true;
+    }
   } catch {
-    return '';
+    return undefined;
   }
-  if (state === undefined || state === null) return '';
-  const active = state.pending === undefined ? state.active === true : state.pending === true;
-  if (!active) return '';
-  return composePlanGuidance({ brainstorming, unlimitedBudget });
+  return undefined;
 }
 
 /**
@@ -155,39 +127,16 @@ export function planEvidenceText(planMode, agent, brainstorming = true, unlimite
  * for compositions where plan mode is host-owned, and the shared `plan`
  * session projection (the unit the compaction command also reads) is the final
  * synchronous fallback. Every source degrades to inactive instead of throwing.
- *
- * @param {object | undefined} agent the agent whose session is assembled.
- * @param {() => object | undefined} [getPlanMode] host-plane planMode reader.
- * @param {() => object | undefined} [getSessionProjections] projection service reader.
- * @returns {boolean} whether plan mode is active for this step's assembly.
  */
 export function readPlanModeActive(agent, getPlanMode, getSessionProjections) {
   if (agent === undefined || agent === null) return false;
   // 1. The agent-scoped planMode instance: `get()` returns the logged state
   //    plus a pending selection whose boolean is the selected direction.
-  try {
-    const scoped = agent.ctx?.get?.('planMode');
-    if (scoped !== undefined && scoped !== null && typeof scoped.get === 'function') {
-      const state = scoped.get(agent);
-      if (state !== undefined && state !== null && typeof state === 'object' && typeof state.active === 'boolean') {
-        return state.pending === undefined ? state.active : state.pending;
-      }
-    }
-  } catch {
-    // Fall through to the next source.
-  }
+  const scoped = readPlanModeState(() => agent.ctx?.get?.('planMode'), agent);
+  if (scoped !== undefined) return scoped;
   // 2. The host-plane planMode instance.
-  try {
-    const host = typeof getPlanMode === 'function' ? getPlanMode() : undefined;
-    if (host !== undefined && host !== null && typeof host.get === 'function') {
-      const state = host.get(agent);
-      if (state !== undefined && state !== null && typeof state === 'object' && typeof state.active === 'boolean') {
-        return state.pending === undefined ? state.active : state.pending;
-      }
-    }
-  } catch {
-    // Fall through to the next source.
-  }
+  const host = readPlanModeState(() => (typeof getPlanMode === 'function' ? getPlanMode() : undefined), agent);
+  if (host !== undefined) return host;
   // 3. The shared `plan` projection's cropped view { active, pending }. The
   //    pending direction is not exposed here, so a pending selection counts as
   //    active; by assembly time the pre-step has already applied pending
@@ -215,7 +164,6 @@ export function readPlanModeActive(agent, getPlanMode, getSessionProjections) {
  * @param {() => object | undefined} options.getPlanMode optional host-plane `planMode` reader.
  * @param {() => object | undefined} [options.getSessionProjections] optional projection service reader.
  * @param {() => object | undefined} options.getConfig optional live plugin config reader.
- * @returns the Cordis effect disposer.
  */
 export function registerPlanEvidenceSection({ systemPrompt, getPlanMode, getSessionProjections, getConfig }) {
   let order = PLAN_EVIDENCE_ORDER_FALLBACK;
@@ -231,21 +179,17 @@ export function registerPlanEvidenceSection({ systemPrompt, getPlanMode, getSess
     name: PLAN_EVIDENCE_SECTION,
     order,
     text: (context) => {
+      let config;
       try {
-        let config;
-        try {
-          config = typeof getConfig === 'function' ? getConfig() : undefined;
-        } catch {
-          config = undefined;
-        }
-        if (!readPlanModeActive(context?.agent, getPlanMode, getSessionProjections)) return '';
-        return composePlanGuidance({
-          brainstorming: readBrainstormingEnabled(config),
-          unlimitedBudget: readUnlimitedBudgetEnabled(config),
-        });
+        config = typeof getConfig === 'function' ? getConfig() : undefined;
       } catch {
-        return '';
+        config = undefined;
       }
+      if (!readPlanModeActive(context?.agent, getPlanMode, getSessionProjections)) return '';
+      return composePlanGuidance({
+        brainstorming: readBrainstormingEnabled(config),
+        unlimitedBudget: readUnlimitedBudgetEnabled(config),
+      });
     },
   });
 }

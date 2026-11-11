@@ -5,7 +5,7 @@ import {
   FAILURES as HOST_FAILURES,
   MESSAGES as HOST_MESSAGES,
   USAGE as HOST_USAGE,
-} from '../host/plan-compaction.js';
+} from '../../host/plan-compaction.js';
 
 let registration;
 globalThis.window = {
@@ -16,7 +16,7 @@ globalThis.window = {
   },
 };
 
-await import('../client.actions.js');
+await import('../../client.actions.js');
 
 const actions = registration.factory(() => {
   throw new Error('client.actions.js must not require a module');
@@ -52,20 +52,10 @@ const zhT = (key) => `中文译文（${key}）`;
 /** Matches CJK characters and full-width punctuation. */
 const CJK = /[　-〿㐀-鿿＀-￯]/;
 
-test('buildPlanExecutionPrompt includes the intro, budget reminder, and complete plan', () => {
-  const prompt = actions.buildPlanExecutionPrompt('# Plan\n\nDo the work.', zhT);
-  assert.ok(prompt.startsWith(`${actions.FRESH_PROMPT_INTRO}\n\nToken budget: unlimited.`));
-  assert.match(prompt, /Never cut investigation, tool calls, or needed questions/);
-  assert.match(prompt, /<approved-plan>\n# Plan\n\nDo the work\.\n<\/approved-plan>\n\nPlan approved — plan mode exited; carry out the plan starting with your next step\.$/);
-});
-
 test('fresh execution prompts end with the canonical approved-plan handoff', () => {
   const canonical = 'Plan approved — plan mode exited; carry out the plan starting with your next step.';
   assert.equal(actions.PLAN_APPROVED_HANDOFF, canonical);
   const t = zhT;
-
-  const legacy = actions.buildPlanExecutionPrompt('# Plan', t, false);
-  assert.equal(legacy, `${actions.FRESH_PROMPT_INTRO}\n\n<approved-plan>\n# Plan\n</approved-plan>\n\n${canonical}`);
 
   const composed = actions.composeFreshPrompt({
     plan: '# Plan',
@@ -76,12 +66,6 @@ test('fresh execution prompts end with the canonical approved-plan handoff', () 
   });
   assert.ok(composed.endsWith(`\n\n${canonical}`));
   assert.equal(composed.split(canonical).length - 1, 1);
-});
-
-test('buildPlanExecutionPrompt omits the budget reminder when the switch is off', () => {
-  const prompt = actions.buildPlanExecutionPrompt('# Plan\n\nDo the work.', zhT, false);
-  assert.equal(prompt.includes('Token budget: unlimited'), false);
-  assert.ok(prompt.startsWith(`${actions.FRESH_PROMPT_INTRO}\n\n<approved-plan>`));
 });
 
 test('the fresh-session budget reminder has the same intent as the plan-mode one', () => {
@@ -129,10 +113,6 @@ test('the composed fresh-session prompt stays English under a Chinese UI transla
   assert.ok(composed.startsWith(`${actions.FRESH_PROMPT_INTRO}\n\n${actions.UNLIMITED_BUDGET_REMINDER}\n\n<fresh-session-context>\n`));
   assert.ok(composed.includes(`${actions.PLAN_MODE_INSTRUCTIONS_HEADING}\n\n<plan-mode-user-instructions>\n`));
   assert.ok(composed.endsWith(`\n\n${actions.PLAN_APPROVED_HANDOFF}`));
-});
-
-test('buildPlanExecutionPrompt rejects an empty plan', () => {
-  assert.throws(() => actions.buildPlanExecutionPrompt('   ', (key) => key), /empty/);
 });
 
 function event(type, data, seq = 0) {
@@ -331,31 +311,6 @@ test('readPlanModeInstructions degrades safely without a binding or when loading
     await actions.readPlanModeInstructions({ sessions: { binding: () => throwingSource } }, 'session-1'),
     empty,
   );
-});
-
-test('buildPlanExecutionPrompt places instructions between the context and the approved plan', () => {
-  const heading = actions.PLAN_MODE_INSTRUCTIONS_HEADING;
-  const context = '<fresh-session-context>\nWorkspace: /tmp\n</fresh-session-context>';
-  const prompt = actions.buildPlanExecutionPrompt('# Plan\nDo it.', zhT, {
-    unlimitedBudget: false,
-    instructions: ['first', 'second'],
-    runtimeContext: context,
-  });
-  assert.ok(prompt.startsWith(`${actions.FRESH_PROMPT_INTRO}\n\n<fresh-session-context>`));
-  assert.ok(prompt.includes(`${heading}\n\n<plan-mode-user-instructions>\nfirst\n\n---\n\nsecond\n</plan-mode-user-instructions>\n\n<approved-plan>`));
-  assert.ok(prompt.indexOf(context) < prompt.indexOf(heading));
-  assert.equal(prompt.includes('Token budget: unlimited'), false);
-});
-
-test('buildPlanExecutionPrompt omits empty optional blocks', () => {
-  const prompt = actions.buildPlanExecutionPrompt('# Plan', zhT, {
-    instructions: ['  ', ''],
-    runtimeContext: '   ',
-  });
-  assert.equal(prompt.includes('plan-mode-user-instructions'), false);
-  assert.equal(prompt.includes('fresh-session-context'), false);
-  assert.ok(prompt.startsWith(`${actions.FRESH_PROMPT_INTRO}\n\nToken budget: unlimited.`));
-  assert.match(prompt, /<approved-plan>\n# Plan\n<\/approved-plan>\n\nPlan approved — plan mode exited; carry out the plan starting with your next step\.$/);
 });
 
 test('composeFreshPrompt includes the minimal runtime context only for the minimal preset', () => {
@@ -785,22 +740,15 @@ test('describeFreshPrompt keeps six ordered blocks whose chars sum to the text l
   }
 });
 
-test('describeFreshPrompt text stays identical to buildPlanExecutionPrompt for the same blocks', () => {
-  const plan = '# Plan\nDo it.';
-  const instructions = ['first', 'second'];
-  const t = previewT;
-  const described = actions.describeFreshPrompt({
-    plan,
-    t,
+test('describeFreshPrompt text stays identical to composeFreshPrompt for the same blocks', () => {
+  const input = {
+    plan: '# Plan\nDo it.',
+    t: previewT,
     presetId: 'standard',
-    instructions,
+    instructions: ['first', 'second'],
     switches: { unlimitedBudget: false, includeOriginalInstructions: true, includeMinimalContext: false },
-  });
-  const built = actions.buildPlanExecutionPrompt(plan, t, {
-    unlimitedBudget: false,
-    instructions,
-  });
-  assert.equal(described.text, built);
+  };
+  assert.equal(actions.describeFreshPrompt(input).text, actions.composeFreshPrompt(input));
 });
 
 test('describeFreshPrompt flags the oversized boundary at exactly the frozen threshold', () => {
@@ -950,6 +898,23 @@ test('ActionError carries the frozen code, params, and English fallback message'
     new actions.ActionError('cleanupFailed', { message: 'locked' }).message,
     'The unused new session could not be cleaned up: locked',
   );
+});
+
+test('ActionError formatting keeps $-patterns in a message literal', () => {
+  const message = "$& $' $$ $1";
+  const error = new actions.ActionError('createSessionFailed', { message });
+  assert.equal(error.message, `Creating the new session failed: ${message}`);
+});
+
+test('formatRpcFailure safely renders every RPC failure shape', () => {
+  assert.equal(actions.formatRpcFailure({ message: 'boom', code: 'busy' }), 'boom (busy)');
+  assert.equal(actions.formatRpcFailure({ message: 'boom' }), 'boom');
+  assert.equal(actions.formatRpcFailure({ code: 'busy' }), 'unknown error (busy)');
+  assert.equal(actions.formatRpcFailure({}), 'unknown error');
+  assert.equal(actions.formatRpcFailure(null), 'unknown error');
+  assert.equal(actions.formatRpcFailure(undefined), 'unknown error');
+  assert.equal(actions.formatRpcFailure({ message: 42, code: 7 }), 'unknown error');
+  assert.equal(actions.formatRpcFailure({ error: { message: 'wrapped', code: 'failed' } }), 'wrapped (failed)');
 });
 
 test('describeActionError localizes a known code with the underlying message parameter', () => {
@@ -1252,6 +1217,32 @@ test('runCompactCommand returns a mapped warning instead of throwing', async () 
   const missingRpc = await actions.runCompactCommand({ ctx: {}, sessionId: 'session-1' });
   assert.equal(missingRpc.ok, false);
   assert.equal(typeof missingRpc.message, 'string');
+});
+
+test('runCompactCommand degrades safely with empty and partial RPC failures', async () => {
+  const missingError = await actions.runCompactCommand({
+    ctx: compactCtx(async () => ({ ok: false })),
+    sessionId: 'session-1',
+  });
+  assert.deepEqual(missingError, { ok: false, message: 'The /great-plan-compact command failed.' });
+
+  const emptyDetail = await actions.runCompactCommand({
+    ctx: compactCtx(async () => ({ ok: false, error: {} })),
+    sessionId: 'session-1',
+  });
+  assert.deepEqual(emptyDetail, { ok: false, message: 'unknown error' });
+
+  const codeOnly = await actions.runCompactCommand({
+    ctx: compactCtx(async () => ({ ok: false, error: { code: 'busy' } })),
+    sessionId: 'session-1',
+  });
+  assert.deepEqual(codeOnly, { ok: false, message: 'unknown error (busy)', code: 'busy' });
+
+  const messageOnly = await actions.runCompactCommand({
+    ctx: compactCtx(async () => ({ ok: false, error: { message: 'boom' } })),
+    sessionId: 'session-1',
+  });
+  assert.deepEqual(messageOnly, { ok: false, message: 'boom' });
 });
 
 test('runCompactCommand keeps the raw host failure text for localization', async () => {

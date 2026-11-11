@@ -74,7 +74,7 @@ npm 包名为 `@onefl666/dsh-great-plan`。通过 `plugin_manager` 的 `install_
 
 ## 开发
 
-无构建步骤、无安装依赖。Host 半会导入几个由运行中的 DSH 安装提供的包（`@deepseek-ai/schemastery`、`@deepseek-ai/dsh-compaction`），已在 `peerDependencies` 中声明。运行 gate（语法检查 + host 测试）；`PATH` 中没有 node 时会自动使用 DSH 自带的 Node：
+无构建步骤、无安装依赖。Host 半会导入几个由运行中的 DSH 安装提供的包（`@deepseek-ai/schemastery`、`@deepseek-ai/dsh-compaction`），已在 `peerDependencies` 中声明。运行 gate（语法检查 + 离线测试）；`PATH` 中没有 node 时会自动使用 DSH 自带的 Node：
 
 ```bash
 bash tools/gate.sh
@@ -89,10 +89,12 @@ gate 通过只说明语法与离线测试正常，不代表 GUI 行为正确。�
 | `index.js`、`host/` | Host 半：`/great-plan-compact` 命令与 plan 模式提示词段 |
 | `client.js`、`client.<name>.js` | Client 半：入口及 `ui`、`settings`、`model`、`preset`、`actions`、`panel` chunk |
 | `locale/` | Plugins 列表的标题与描述 |
-| `test/`、`tools/gate.sh` | 离线测试与验证 gate |
+| `test/manifest.test.js`、`test/host/`、`test/client/` | 离线测试：包清单，以及 Host 与 Client 两套用例 |
+| `docs/promo/` | 宣传视频源文件；仅存在于仓库，渲染帧目录被 git 忽略 |
+| `tools/gate.sh` | 验证 gate |
 | `.github/workflows/gate.yml` | CI：push 与 pull request 时运行 gate |
 
-npm 包只包含 `index.js`、`host/`、`client*.js`、`cordis.patch.yml`、`locale/`、`icon.svg`、两个 README 与 `LICENSE`；`test/`、`tools/`、`.github/`、`AGENTS.md` 仅存在于仓库。
+npm 包只包含 `index.js`、`host/`、`client*.js`、`cordis.patch.yml`、`locale/`、`icon.svg`、两个 README 与 `LICENSE`；`test/`、`tools/`、`.github/`、`docs/`、`AGENTS.md` 仅存在于仓库。
 
 详见 [AGENTS.md](https://github.com/onefl666/dsh-great-plan/blob/main/AGENTS.md) 的 Module Map。
 

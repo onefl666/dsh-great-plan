@@ -6,9 +6,13 @@ import {
   EXIT_PLAN_MODE_TOOL,
   FAILURES,
   MESSAGES,
+  resolveCompactionService,
   USAGE,
-} from '../host/plan-compaction.js';
-import { selectPlanCompactionRange } from '../host/plan-range.js';
+} from '../../host/plan-compaction.js';
+import {
+  EXIT_PLAN_MODE_TOOL as RANGE_EXIT_PLAN_MODE_TOOL,
+  selectPlanCompactionRange,
+} from '../../host/plan-range.js';
 
 function sessionWith(events) {
   const nodes = [...events.keys()];
@@ -57,7 +61,7 @@ function commandDeps(overrides = {}) {
   return {
     calls,
     deps: {
-      getProjections: () => ({ stateOf: () => ({ active: true }) }),
+      getProjections: () => ({ snapshot: () => ({ values: { plan: { active: true } } }) }),
       getCompaction: () => ({
         compactRegion: async (start, end) => {
           calls.push([start, end]);
@@ -96,8 +100,132 @@ test('compact command compacts the selected range and reports the result', async
   assert.match(result.text, /123 tokens/);
 });
 
+test('compact command prefers the preset-scoped compaction service and forwards agent and signal', async () => {
+  const compactCalls = [];
+  const serviceForCalls = [];
+  const agent = { session: sessionWith(standardEvents) };
+  const signal = new AbortController().signal;
+  const scopedService = {
+    async compactRegion(start, end, receivedAgent, receivedSignal) {
+      compactCalls.push([start, end, receivedAgent, receivedSignal]);
+      return { shadowedSeqs: [20, 30], shadowedTokenCount: 123 };
+    },
+  };
+  const { deps } = commandDeps({
+    getAgentPresets: () => ({
+      serviceFor(receivedAgent, serviceName) {
+        serviceForCalls.push([receivedAgent, serviceName]);
+        return scopedService;
+      },
+    }),
+    getCompaction: () => {
+      throw new Error('the host-plane compaction service must not be read');
+    },
+  });
+
+  const result = await createCompactCommand(deps).handler({ ...invocation(standardEvents), agent, signal });
+
+  assert.equal(result.kind, 'success');
+  assert.deepEqual(serviceForCalls, [[agent, 'compaction']]);
+  assert.equal(compactCalls.length, 1);
+  const [start, end, receivedAgent, receivedSignal] = compactCalls[0];
+  assert.equal(start, 20);
+  assert.equal(end, 40);
+  assert.equal(receivedAgent, agent);
+  assert.equal(receivedSignal, signal);
+});
+
+const hostService = { compactRegion() {} };
+const ctxService = { compactRegion() {} };
+const presetService = { compactRegion() {} };
+
+test('resolveCompactionService prefers the preset, then the agent context, then the host fallback', () => {
+  const agent = { ctx: { get: () => ctxService } };
+  assert.equal(resolveCompactionService(agent, {
+    getAgentPresets: () => ({ serviceFor: () => presetService }),
+    getCompaction: () => hostService,
+  }), presetService);
+  assert.equal(resolveCompactionService(agent, {
+    getAgentPresets: () => ({ serviceFor: () => undefined }),
+    getCompaction: () => hostService,
+  }), ctxService);
+  assert.equal(resolveCompactionService(agent, {
+    getAgentPresets: () => undefined,
+    getCompaction: () => hostService,
+  }), ctxService);
+  assert.equal(resolveCompactionService({}, { getCompaction: () => hostService }), hostService);
+  assert.equal(resolveCompactionService({}, {}), undefined);
+});
+
+test('invalid or throwing scoped compaction reads fall through to the host fallback', () => {
+  for (const accessors of [
+    { getAgentPresets: () => { throw new Error('registry unavailable'); } },
+    { getAgentPresets: () => ({ serviceFor: () => { throw new Error('serviceFor unavailable'); } }) },
+    { getAgentPresets: () => ({ serviceFor: () => ({}) }) },
+    { getAgentPresets: () => 'not-a-registry' },
+  ]) {
+    assert.equal(
+      resolveCompactionService({}, { ...accessors, getCompaction: () => hostService }),
+      hostService,
+    );
+  }
+  for (const agent of [
+    { ctx: { get: () => ({}) } },
+    { ctx: { get: () => { throw new Error('scoped context unavailable'); } } },
+  ]) {
+    assert.equal(resolveCompactionService(agent, { getCompaction: () => hostService }), hostService);
+  }
+});
+
+test('resolveCompactionService forwards the agent to every source', () => {
+  const agent = {};
+  const calls = [];
+  const resolved = resolveCompactionService(agent, {
+    getAgentPresets: () => ({
+      serviceFor(receivedAgent, serviceName) {
+        calls.push(['preset', receivedAgent, serviceName]);
+        return undefined;
+      },
+    }),
+    getCompaction: (receivedAgent) => {
+      calls.push(['host', receivedAgent]);
+      return hostService;
+    },
+  });
+  assert.equal(resolved, hostService);
+  assert.deepEqual(calls, [['preset', agent, 'compaction'], ['host', agent]]);
+});
+
+test('an undefined agent skips the scoped sources and forwards to the host fallback', () => {
+  const calls = [];
+  const resolved = resolveCompactionService(undefined, {
+    getAgentPresets: () => {
+      calls.push('presets');
+      return { serviceFor: () => presetService };
+    },
+    getCompaction: (receivedAgent) => {
+      calls.push(['host', receivedAgent]);
+      return hostService;
+    },
+  });
+  assert.equal(resolved, hostService);
+  assert.deepEqual(calls, [['host', undefined]]);
+});
+
+test('a throwing host compaction read keeps its detail in the error text', async () => {
+  const { deps } = commandDeps({
+    getCompaction: () => {
+      throw new Error('host read exploded');
+    },
+  });
+  const result = await createCompactCommand(deps).handler(invocation(standardEvents));
+  assert.deepEqual(result, { kind: 'error', text: 'Compaction is unavailable: host read exploded' });
+});
+
 test('compact command refuses when plan mode is inactive', async () => {
-  const { deps } = commandDeps({ getProjections: () => ({ stateOf: () => ({ active: false }) }) });
+  const { deps } = commandDeps({
+    getProjections: () => ({ snapshot: () => ({ values: { plan: { active: false } } }) }),
+  });
   const result = await createCompactCommand(deps).handler(invocation(standardEvents));
   assert.equal(result.kind, 'error');
   assert.match(result.text, /not active/);
@@ -211,6 +339,11 @@ test('the plan-review tool name is overridable and defaults to exit_plan_mode', 
   );
 });
 
+test('plan-range owns the canonical plan-review tool name and plan-compaction re-exports it', () => {
+  assert.equal(RANGE_EXIT_PLAN_MODE_TOOL, 'exit_plan_mode');
+  assert.equal(EXIT_PLAN_MODE_TOOL, RANGE_EXIT_PLAN_MODE_TOOL);
+});
+
 test('compact command only accepts exit_plan_mode as the pending plan review', async () => {
   const { deps } = commandDeps();
   const nonReviewEvents = new Map([
@@ -239,7 +372,8 @@ test('non-string rawInput is treated as no arguments', async () => {
 test('static command failures use the exported message table', async () => {
   const cases = [
     [{ getProjections: () => undefined }, MESSAGES.planStateUnavailable],
-    [{ getProjections: () => ({ stateOf: () => ({ active: false }) }) }, MESSAGES.planInactive],
+    [{ getProjections: () => ({}) }, MESSAGES.planStateUnavailable],
+    [{ getProjections: () => ({ snapshot: () => ({ values: { plan: { active: false } } }) }) }, MESSAGES.planInactive],
     [{ getCompaction: () => undefined }, MESSAGES.backendUnavailable],
     [{ getCompaction: () => ({}) }, MESSAGES.backendUnavailable],
   ];
@@ -265,12 +399,26 @@ test('static command failures use the exported message table', async () => {
   );
 });
 
+test('an unreadable plan projection snapshot degrades to an error instead of throwing', async () => {
+  const { deps } = commandDeps({
+    getProjections: () => ({
+      snapshot() {
+        throw new Error('projection exploded');
+      },
+    }),
+  });
+  const result = await createCompactCommand(deps).handler(invocation(standardEvents));
+  assert.deepEqual(result, { kind: 'error', text: 'Plan state is unavailable: projection exploded' });
+});
+
 test('a missing invocation degrades to a command error instead of throwing', async () => {
   const { deps } = commandDeps();
   const command = createCompactCommand(deps);
-  const result = await command.handler(undefined);
-  assert.equal(result.kind, 'error');
-  assert.equal(typeof result.text, 'string');
+  for (const invocation of [undefined, null]) {
+    const result = await command.handler(invocation);
+    assert.equal(result.kind, 'error');
+    assert.equal(typeof result.text, 'string');
+  }
 });
 
 test('stable compaction failure codes map through the exported failure table', async () => {
@@ -287,6 +435,20 @@ test('stable compaction failure codes map through the exported failure table', a
     const result = await createCompactCommand(deps).handler(invocation(standardEvents));
     assert.deepEqual(result, { kind: 'error', text: FAILURES[code] });
   }
+});
+
+test('an inherited failure-code name does not shadow the real backend message', async () => {
+  const { deps } = commandDeps({
+    getCompaction: () => ({
+      compactRegion: async () => {
+        const error = new Error('the backend failed');
+        error.code = 'toString';
+        throw error;
+      },
+    }),
+  });
+  const result = await createCompactCommand(deps).handler(invocation(standardEvents));
+  assert.deepEqual(result, { kind: 'error', text: 'the backend failed' });
 });
 
 test('an aborted signal reports cancellation even when the backend error has no code', async () => {

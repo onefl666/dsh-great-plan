@@ -74,7 +74,7 @@ Open **Settings** from the sidebar and choose **Great Plan**. **Inject brainstor
 
 ## Development
 
-There is no build step or installed dependency. The Host half imports a few DSH packages (`@deepseek-ai/schemastery`, `@deepseek-ai/dsh-compaction`) that the running installation supplies, declared as peer dependencies. Run the gate (syntax check + host tests); it finds DSH's bundled Node when none is on `PATH`:
+There is no build step or installed dependency. The Host half imports a few DSH packages (`@deepseek-ai/schemastery`, `@deepseek-ai/dsh-compaction`) that the running installation supplies, declared as peer dependencies. Run the gate (syntax check + offline tests); it finds DSH's bundled Node when none is on `PATH`:
 
 ```bash
 bash tools/gate.sh
@@ -89,10 +89,12 @@ A green gate proves parsing and the offline tests only, not GUI behavior. The sa
 | `index.js`, `host/` | Host half: the `/great-plan-compact` command and the plan-mode prompt section |
 | `client.js`, `client.<name>.js` | Client half: entry plus `ui`, `settings`, `model`, `preset`, `actions`, `panel` chunks |
 | `locale/` | Plugins-list title and description |
-| `test/`, `tools/gate.sh` | Offline tests and the verification gate |
+| `test/manifest.test.js`, `test/host/`, `test/client/` | Offline tests: package manifest, then Host and Client suites |
+| `docs/promo/` | Promo video sources; repository-only, rendered frames are git-ignored |
+| `tools/gate.sh` | Verification gate |
 | `.github/workflows/gate.yml` | CI: runs the gate on push and pull requests |
 
-The npm package ships only `index.js`, `host/`, `client*.js`, `cordis.patch.yml`, `locale/`, `icon.svg`, the READMEs, and `LICENSE`; `test/`, `tools/`, `.github/`, and `AGENTS.md` are repository-only.
+The npm package ships only `index.js`, `host/`, `client*.js`, `cordis.patch.yml`, `locale/`, `icon.svg`, the READMEs, and `LICENSE`; `test/`, `tools/`, `.github/`, `docs/`, and `AGENTS.md` are repository-only.
 
 See the Module Map in [AGENTS.md](https://github.com/onefl666/dsh-great-plan/blob/main/AGENTS.md) for details.
 
