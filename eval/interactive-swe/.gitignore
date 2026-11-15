@@ -1,0 +1,6 @@
+cache/
+runs/
+reports/
+dataset/*.parquet
+dataset/tasks.jsonl
+dataset/tasks.meta.json

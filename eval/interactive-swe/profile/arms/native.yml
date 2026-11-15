@@ -1,0 +1,3 @@
+# Native arm: the Great Plan plugin loads but its contribution is disabled.
+- id: great-plan
+  disabled: true

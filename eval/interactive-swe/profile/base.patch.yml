@@ -1,0 +1,66 @@
+# Base layer for the interactive-swe eval profile.
+# Applied after the profile's bundle layers (dsh-base, dsh-sdk-app, the plugin
+# bundle) and before the arm patch. Host rows only: the eval profile boots the
+# SDK app, so no browser surface is present.
+
+- insert:
+    - id: agent-team
+      name: '@deepseek-ai/dsh-experimental-agent-team'
+      config:
+        maxMembers: 8
+        maxTasks: 256
+        maxMessageBytes: 65536
+        disposalTimeoutMs: 5000
+
+    - id: tool-agent-team
+      name: '@deepseek-ai/dsh-experimental-tool-agent-team'
+      config:
+        freshProvider: spawn
+        forkProvider: fork
+
+# Direct subagent tools are replaced by the Team tools above.
+- id: tool-subagent-control
+  disabled: true
+
+- id: tool-subagent
+  disabled: true
+
+- id: tool-subagent-fork
+  disabled: true
+
+# Network-facing surfaces stay off: no model/tool web access in an offline run.
+- id: web
+  disabled: true
+
+- id: tool-web
+  disabled: true
+
+- id: web-search-deepseek
+  disabled: true
+
+- id: web-deepseek-api
+  disabled: true
+
+- id: web-fetch-http
+  disabled: true
+
+# Workflows and the plugin manager are not part of the evidence workflow.
+- id: workflow-ptc
+  disabled: true
+
+- id: tool-workflow
+  disabled: true
+
+- id: plugin-manager
+  disabled: true
+
+- id: tool-plugin-manager
+  disabled: true
+
+# Office skill assets and workspace dependency installation are not needed and
+# would reach outside the isolated homes.
+- id: skill-office
+  disabled: true
+
+- id: workspace-dependencies
+  disabled: true

@@ -1,0 +1,9 @@
+# Full arm: restate all four volatile Config fields.
+# A Cordis patch replaces the whole config, so every field must be present.
+- id: great-plan
+  config:
+    injectBrainstormingPrompt: true
+    injectUnlimitedBudgetPrompt: true
+    includeOriginalUserInstructions: true
+    includeMinimalRuntimeContext: true
+
