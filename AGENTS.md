@@ -219,7 +219,7 @@ trigger (only when pendingInteraction.kind === 'plan-review'; the dialog is moun
 | `locale/en.json`, `locale/zh.json` | Plugin listing `meta.title`/`meta.description` only — not runtime copy. |
 | `icon.svg` | Plugin icon (SVG, inside the package, < 256 KiB). |
 | `cordis.patch.yml` | Host bundle patch inserting row `great-plan`. |
-| `package.json` | Manifest: `main` (`lib/index.js`), `exports` (`.` → `lib/index.js`, `./client` → `lib/client.js`), `files` (runtime entries `lib/index.js`, `lib/host/*.js`, `lib/client.js`, `lib/client.*.js`), `peerDependencies` (Host imports supplied by the installation), `dsh.bundle.patch`, `dsh.client`, npm metadata (`publishConfig`, `author`, `keywords`); version `0.6.0`. |
+| `package.json` | Manifest: `main` (`lib/index.js`), `exports` (`.` → `lib/index.js`, `./client` → `lib/client.js`), `files` (runtime entries `lib/index.js`, `lib/host/*.js`, `lib/client.js`, `lib/client.*.js`), `peerDependencies` (Host imports supplied by the installation), `dsh.bundle.patch`, `dsh.client`, npm metadata (`publishConfig`, `author`, `keywords`); version `0.6.1`. |
 | `test/manifest.test.js`, `test/host/*.test.js`, `test/client/*.test.js` | Offline Node tests grouped by package half (see **Host Tests**). |
 | `tools/gate.sh` | Verification gate (see **Gate**). |
 | `eval/interactive-swe/` | interactive-swe evaluation harness (repository-only, not packaged): dataset fetch/normalize, SDK runner, simulated user, session-log scoring, report; see its README/PROTOCOL/VALIDATION. |
