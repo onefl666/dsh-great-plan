@@ -22,14 +22,14 @@ A DSH Web plugin: choose the model and reasoning effort, then execute a reviewed
 - **First-message preview and this-run switches** — before **Start fresh and execute…** confirms, the dialog previews exactly what the new session's first message will contain: the execution intro, the optional budget reminder, the optional Minimal runtime context, the original user instructions (with count and size), the approved plan, and the canonical approval handoff, plus total size and an approximate token count. Budget, instructions, and runtime context can be toggled for this run only; global Settings stay unchanged. An oversized hint appears above ~32,000 characters, and instructions are never truncated.
 - **Recoverable compaction failure** — if compaction cannot run (unavailable backend, no compactable history, a failed request, or cancellation), the plan is no longer approved automatically: the dialog explains the cause and offers **Retry compaction**, **Execute anyway**, or **Cancel**. Failure copy is localized in the dialog.
 - **Plan inside the dialog and Back to editing** — expand the complete reviewed plan without closing the dialog, and use **Back to editing** (the native Discuss behavior: the card is hidden and the review stays pending) to return to the composer. The backdrop now dims the page behind the dialog.
-- **Model search and provider-default effort** — filter the model list by provider or model name, and clear an explicit reasoning-effort override back to the provider default in the effort list.
+- **Model search, provider failures, and provider-default effort** — filter the model list by provider or model name; provider-local catalog failures are listed by provider name and message with a retry action; a saved model that left the catalog is marked **Current model is unavailable** (its retained effort stays visible); and an explicit reasoning-effort override can be cleared back to the provider default.
 - **Reset to default** — every Settings row whose switch is off offers a reset control that restores its default (on).
 
 The native **Approve**, **Request changes**, and **View full plan** controls are unchanged; the plugin only adds one **Execution options** entry to the plan-review card.
 
 ## Requirements
 
-- DSH with the Web client, version 0.2.1-rc.3 or newer (verified on 0.2.1-rc.5).
+- DSH with the Web client, version 0.2.2-rc.3 or newer (verified on 0.2.2-rc.3).
 - **Compact and execute** needs a compaction backend in the DSH composition. Without one, the dialog shows the failure and lets you retry, execute the plan anyway, or cancel.
 
 ## Installation
@@ -57,7 +57,7 @@ Open **Settings** from the sidebar and choose **Great Plan**. **Inject brainstor
 
 ## Known limitations
 
-- The model list now has a simple substring search; the Composer model control remains the full picker, and the two never share state.
+- The model list has a simple substring search and renders the shared session model directory, so it agrees with the Composer model selector. Provider-local catalog failures keep the usable providers selectable; a current model missing from the catalog is marked unavailable instead of silently showing a bare id.
 - Selecting a model is also saved as the default model (existing DSH behavior).
 - Compaction makes one summary model request.
 - The new-session title prefix and stopping the old session are best-effort.
@@ -66,7 +66,7 @@ Open **Settings** from the sidebar and choose **Great Plan**. **Inject brainstor
 - The budget, brainstorming, and evidence guidance is advisory; the plugin does not validate model compliance or verify that teammates were actually spawned. Command descriptions are not localized. The Settings switches need the DSH settings services; without them the page is not registered and all four switches default to on.
 - The unlimited-budget reminder is added only to the plan-mode prompt and the **Start fresh and execute…** first message; **Compact and execute** does not add it. The Client reads the fresh-session switches from the configuration mirror and defaults to on when the settings UI is unavailable.
 - The canonical approval handoff (`Plan approved — plan mode exited; carry out the plan starting with your next step.`) is always appended at the end of the fresh-session first message, is intentionally English, and is not controlled by the three this-run switches. **Compact and execute** does not add a second copy: the native approval result already carries it. The clear-view preview counts it in the total size.
-- Plan-mode instructions are read from the old session's loaded event window; the plugin looks back up to eight history pages for the current plan-mode start, then falls back to the current turn or the latest user text. The preview reuses that read for execution. Instructions are never truncated: the preview shows the total size, an approximate token count, and an oversized hint above ~32,000 characters, but a very long conversation still produces a large first message.
+- Plan-mode instructions are read from the old session's loaded event window; the plugin folds the plan-mode markers in order (a repeated `/plan …` inside an active episode does not move the start past earlier user texts, `/plan off` ends it, and a later `/plan …` starts a new one), then falls back to the current turn or the latest user text. The preview reuses that read for execution. Instructions are never truncated: the preview shows the total size, an approximate token count, and an oversized hint above ~32,000 characters, but a very long conversation still produces a large first message.
 - The preview's Minimal runtime context is read when the clear view opens; execution reads the time again, so the previewed time can differ.
 - The Minimal-mode runtime context is read from the browser (platform, local time, and IANA zone). In a remote Web deployment it describes the browser, not necessarily the Host; the workspace directory still comes from the Host-side workspace.
 - A fresh session starts with the deployment's default permissions and sandbox context; the old session's permission or sandbox state is not inherited.
@@ -91,10 +91,12 @@ A green gate proves parsing and the offline tests only, not GUI behavior. The sa
 | `locale/` | Plugins-list title and description |
 | `test/manifest.test.js`, `test/host/`, `test/client/` | Offline tests: package manifest, then Host and Client suites |
 | `docs/promo/` | Promo video sources; repository-only, rendered frames are git-ignored |
+| `eval/interactive-swe/` | interactive-swe evaluation harness; repository-only, not packaged (see its README) |
 | `tools/gate.sh` | Verification gate |
+| `tools/gate-eval.sh` | Evaluation-harness gate; independent of the plugin gate |
 | `.github/workflows/gate.yml` | CI: runs the gate on push and pull requests |
 
-The npm package ships only `lib/index.js`, `lib/host/`, `lib/client*.js`, `cordis.patch.yml`, `locale/`, `icon.svg`, the READMEs, and `LICENSE`; `test/`, `tools/`, `.github/`, `docs/`, and `AGENTS.md` are repository-only.
+The npm package ships only `lib/index.js`, `lib/host/`, `lib/client*.js`, `cordis.patch.yml`, `locale/`, `icon.svg`, the READMEs, and `LICENSE`; `test/`, `tools/`, `.github/`, `docs/`, `eval/`, and `AGENTS.md` are repository-only.
 
 See the Module Map in [AGENTS.md](https://github.com/onefl666/dsh-great-plan/blob/main/AGENTS.md) for details.
 
