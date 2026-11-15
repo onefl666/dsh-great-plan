@@ -943,6 +943,77 @@ test('a blocked Escape is consumed and never closes the dialog', () => {
   assert.equal(closed, 1);
 });
 
+/*
+ * The dialog title is focusable (`tabIndex={-1}`) but excluded from the
+ * tabbable list. `panel.contains(active)` would treat it as "inside" and let
+ * Shift+Tab escape to the page, so the trap checks list membership instead.
+ */
+function withFocusableEnvironment(run) {
+  const previousHTMLElement = globalThis.HTMLElement;
+  class FakeHTMLElement {
+    constructor(name) {
+      this.name = name;
+      this.offsetParent = {};
+      this.focusCount = 0;
+    }
+
+    focus() {
+      this.focusCount += 1;
+      globalThis.document.activeElement = this;
+    }
+  }
+  globalThis.HTMLElement = FakeHTMLElement;
+  const title = new FakeHTMLElement('title');
+  const first = new FakeHTMLElement('first');
+  const last = new FakeHTMLElement('last');
+  const panel = { querySelectorAll: () => [first, last] };
+  globalThis.document.activeElement = title;
+  try {
+    run({ title, first, last, panel });
+  } finally {
+    globalThis.HTMLElement = previousHTMLElement;
+    globalThis.document.activeElement = undefined;
+  }
+}
+
+function tabEvent(shiftKey) {
+  return {
+    key: 'Tab',
+    shiftKey,
+    defaultPrevented: false,
+    preventDefault() {
+      this.defaultPrevented = true;
+    },
+    stopPropagation() {},
+  };
+}
+
+test('Shift+Tab from the dialog title wraps to the last tabbable control', () => {
+  withFocusableEnvironment(({ first, last, panel }) => {
+    const event = tabEvent(true);
+    ui.handleDialogKeyDown(event, { blocked: false, onClose: () => {}, panel });
+    assert.equal(event.defaultPrevented, true, 'the trap must consume the key');
+    assert.equal(last.focusCount, 1, 'focus wraps to the last control');
+    assert.equal(first.focusCount, 0);
+  });
+});
+
+test('Tab from the dialog title wraps to the first tabbable control', () => {
+  withFocusableEnvironment(({ first, last, panel }) => {
+    const event = tabEvent(false);
+    ui.handleDialogKeyDown(event, { blocked: false, onClose: () => {}, panel });
+    assert.equal(event.defaultPrevented, true, 'the trap must consume the key');
+    assert.equal(first.focusCount, 1, 'focus wraps to the first control');
+    assert.equal(last.focusCount, 0);
+  });
+});
+
+test('the portal backdrop and dialog opt out of the window drag region', () => {
+  const dialog = ui.Dialog({ open: true, onRequestClose: () => {}, labelledBy: 'x', children: null });
+  assert.equal(dialog.children[0].props['data-window-drag-exclude'], '');
+  assert.equal(dialog.children[1].props['data-window-drag-exclude'], '');
+});
+
 function renderSettingsSection(form, t) {
   const settings = modules['client.settings.js'];
   const section = settings.GreatPlanSection({ form, t });

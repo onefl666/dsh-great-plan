@@ -138,6 +138,50 @@ const READY_SNAPSHOT = {
   writable: true,
 };
 
+/**
+ * One injected Context stand-in: `get`, `slots`, and `effect`.
+ *
+ * The real cordis `ctx.inject` callback receives a child Context whose `slots`
+ * and `effect` calls bind to that child's fiber. `dispose()` simulates the
+ * child fiber unload so the tests can prove registrations disappear with it.
+ */
+function createScope(service, registrations) {
+  const effects = [];
+  const scope = {
+    get: (name) => (name === 'configForms' ? service : undefined),
+    effect(run, label) {
+      const cleanup = run();
+      effects.push({ run, label, cleanup });
+      return typeof cleanup === 'function' ? cleanup : () => {};
+    },
+    slots: {
+      inject: (_key, callback) => {
+        const cleanup = callback();
+        return typeof cleanup === 'function' ? cleanup : () => {};
+      },
+      register: (options, component) => {
+        const entry = { options, component };
+        registrations.push(entry);
+        let disposed = false;
+        return () => {
+          if (disposed) return;
+          disposed = true;
+          const index = registrations.indexOf(entry);
+          if (index !== -1) registrations.splice(index, 1);
+        };
+      },
+    },
+  };
+  scope.dispose = () => {
+    for (let index = effects.length - 1; index >= 0; index -= 1) {
+      const cleanup = effects[index].cleanup;
+      if (typeof cleanup === 'function') cleanup();
+    }
+    effects.length = 0;
+  };
+  return scope;
+}
+
 function createCtx({ configForms, registrations, deliverImmediately = true }) {
   const directory = {
     store: {
@@ -149,23 +193,46 @@ function createCtx({ configForms, registrations, deliverImmediately = true }) {
   };
   const injectCalls = [];
   const effects = [];
+  const scopes = [];
+  let activeScope;
+  const deliver = (service) => {
+    if (activeScope !== undefined) {
+      activeScope.dispose();
+      activeScope = undefined;
+    }
+    for (const call of injectCalls) {
+      const scope = createScope(service, registrations);
+      call.scope = scope;
+      scopes.push(scope);
+      activeScope = scope;
+      call.callback(scope);
+    }
+  };
   return {
     get() {
       // The entry must never read `configForms` eagerly: it is injected.
       return undefined;
     },
     inject(deps, callback) {
-      injectCalls.push({ deps: [...deps], callback });
+      const call = { deps: [...deps], callback, scope: undefined };
+      injectCalls.push(call);
       if (deliverImmediately && configForms !== undefined) {
-        callback({ get: (name) => (name === 'configForms' ? configForms : undefined) });
+        const scope = createScope(configForms, registrations);
+        call.scope = scope;
+        scopes.push(scope);
+        activeScope = scope;
+        callback(scope);
       }
       return () => {};
     },
     /** Simulate the optional service arriving after `apply` returned. */
     deliverConfigForms(service) {
-      for (const call of injectCalls) {
-        call.callback({ get: (name) => (name === 'configForms' ? service : undefined) });
-      }
+      deliver(service);
+    },
+    /** Simulate unloading the injected child fiber. */
+    disposeScopes() {
+      for (const scope of scopes.splice(0)) scope.dispose();
+      activeScope = undefined;
     },
     injectCalls,
     effects,
@@ -343,6 +410,123 @@ test('the settings surface is not registered when configForms never arrives', as
   assert.equal(registrations[0].options.name, 'conversation.plan-review.actions');
   assert.equal(ctx.injectCalls.length, 1);
   assert.equal(ctx.injectCalls[0].callback.length, 1, 'the inject callback takes the scope');
+});
+
+test('the optional settings injection hands the callback a child scope with slots and effect', async () => {
+  const plugin = createPlugin();
+  const registrations = [];
+  const form = createConfigForm(READY_SNAPSHOT);
+  const ctx = createCtx({ configForms: readConfigFormsService(form), registrations });
+
+  await plugin.apply(ctx);
+  const scope = ctx.injectCalls[0].scope;
+  assert.ok(scope, 'the delivery must pass a scope, not a bare getter');
+  assert.equal(typeof scope.get, 'function');
+  assert.equal(typeof scope.effect, 'function');
+  assert.equal(typeof scope.slots.inject, 'function');
+  assert.equal(typeof scope.slots.register, 'function');
+  assert.equal(registrations.filter((entry) => entry.options.name === 'settings.section').length, 1);
+});
+
+test('the settings section registers once even when the same injected service is delivered twice', async () => {
+  const plugin = createPlugin();
+  const registrations = [];
+  const ctx = createCtx({ configForms: undefined, registrations });
+  await plugin.apply(ctx);
+
+  const service = readConfigFormsService(createConfigForm(READY_SNAPSHOT));
+  ctx.deliverConfigForms(service);
+  ctx.deliverConfigForms(service);
+
+  assert.equal(
+    registrations.filter((entry) => entry.options.name === 'settings.section').length,
+    1,
+    'replacing the injected service must not leave the previous registration behind',
+  );
+});
+
+test('disposing the injected scope removes the settings section and resets the switch reader', async () => {
+  const plugin = createPlugin();
+  const registrations = [];
+  const ctx = createCtx({ configForms: undefined, registrations });
+  await plugin.apply(ctx);
+  const face = registrations[0].options.inject('session-1');
+
+  const form = createConfigForm({
+    status: 'ready',
+    value: {
+      injectBrainstormingPrompt: true,
+      injectUnlimitedBudgetPrompt: false,
+      includeOriginalUserInstructions: false,
+      includeMinimalRuntimeContext: false,
+    },
+    writable: true,
+  });
+  ctx.deliverConfigForms(readConfigFormsService(form));
+  assert.equal(registrations.filter((entry) => entry.options.name === 'settings.section').length, 1);
+  assert.deepEqual(face.readPromptSwitches(), {
+    unlimitedBudget: false,
+    includeOriginalInstructions: false,
+    includeMinimalContext: false,
+  });
+
+  ctx.disposeScopes();
+  assert.equal(
+    registrations.filter((entry) => entry.options.name === 'settings.section').length,
+    0,
+    'the registration belongs to the injected scope and must unload with it',
+  );
+  assert.equal(registrations.some((entry) => entry.options.name === 'conversation.plan-review.actions'), true);
+  assert.deepEqual(face.readPromptSwitches(), {
+    unlimitedBudget: true,
+    includeOriginalInstructions: true,
+    includeMinimalContext: true,
+  });
+});
+
+test('readPromptSwitches stops reading a withdrawn service and never throws', async () => {
+  const plugin = createPlugin();
+  const registrations = [];
+  const ctx = createCtx({ configForms: undefined, registrations });
+  await plugin.apply(ctx);
+  const face = registrations[0].options.inject('session-1');
+
+  const form = createConfigForm({
+    status: 'ready',
+    value: {
+      injectBrainstormingPrompt: true,
+      injectUnlimitedBudgetPrompt: false,
+      includeOriginalUserInstructions: false,
+      includeMinimalRuntimeContext: false,
+    },
+    writable: true,
+  });
+  let reads = 0;
+  let withdrawn = false;
+  const service = {
+    get: (id) => {
+      reads += 1;
+      if (withdrawn) throw new Error('configForms was withdrawn');
+      return id === 'great-plan' ? form : undefined;
+    },
+  };
+  ctx.deliverConfigForms(service);
+  assert.deepEqual(face.readPromptSwitches(), {
+    unlimitedBudget: false,
+    includeOriginalInstructions: false,
+    includeMinimalContext: false,
+  });
+
+  withdrawn = true;
+  ctx.disposeScopes();
+  reads = 0;
+  assert.doesNotThrow(() => face.readPromptSwitches());
+  assert.equal(reads, 0, 'a disposed service must not be read again');
+  assert.deepEqual(face.readPromptSwitches(), {
+    unlimitedBudget: true,
+    includeOriginalInstructions: true,
+    includeMinimalContext: true,
+  });
 });
 
 test('apply registers the dictionary and stylesheet effects with disposers and frozen labels', async () => {

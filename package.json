@@ -48,7 +48,7 @@
   ],
   "peerDependencies": {
     "@deepseek-ai/dsh-compaction": "^0.2.1-rc.3",
-    "@deepseek-ai/schemastery": "~3.18.5"
+    "@deepseek-ai/schemastery": "^3.18.5"
   },
   "dsh": {
     "bundle": {

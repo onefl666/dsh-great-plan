@@ -118,6 +118,14 @@ test('the linked package declares the Harness packages its Host code imports as 
   }
 });
 
+test('the Schemastery peer range admits the installed 3.19 release', () => {
+  // `~3.18.5` excludes the installed 3.19.0; the manifest must use a caret
+  // range so the declared peer matches what the running installation ships.
+  const range = packageJson.peerDependencies?.['@deepseek-ai/schemastery'];
+  assert.equal(range, '^3.18.5');
+  assert.equal(range.startsWith('~'), false, 'the tilde range excludes the installed 3.19.0');
+});
+
 test('the Host entry exports Config plus apply and the Client orders the settings packages', () => {
   const entry = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8');
   assert.match(entry, /export \{ Config \} from '\.\/host\/config\.js'/);

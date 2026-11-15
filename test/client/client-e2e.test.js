@@ -908,6 +908,42 @@ test('revise: a rejected dismissal renders error.dismissFailed and keeps the dia
   assert.ok(findActionRow(node, 'panel.actions.execute.title'), 'the action rows stay usable');
 });
 
+test('revise: an in-flight dismissal blocks Escape and the backdrop', async () => {
+  const dismissGate = deferred();
+  const flow = scenario({ pending: createPending({ dismiss: () => dismissGate.promise }) });
+  const click = findUiButton(flow.node, 'panel.revise').props.onClick();
+  await flush();
+
+  let node = flow.render();
+  assert.equal(findDialogElement(node).props.blocked, true);
+  assert.equal(findDialogElement(node).props.busy, true);
+  assert.equal(findIconButton(node, 'panel.close').props.disabled, true);
+
+  // Background click: the backdrop handler ignores a click while blocked.
+  const dialogHost = findDialogElement(node);
+  const renderedDialog = ui.Dialog(dialogHost.props);
+  const backdrop = findElements(renderedDialog, (child) => child?.props?.className === 'gp-backdrop')[0];
+  assert.ok(backdrop, 'the backdrop renders');
+  backdrop.props.onMouseDown({ target: backdrop, currentTarget: backdrop });
+  assert.equal(flow.closed.length, 0, 'a blocked backdrop click is ignored');
+
+  // Escape: the dialog keydown handler receives the same blocked flag.
+  let escaped = 0;
+  ui.handleDialogKeyDown(
+    { key: 'Escape', preventDefault() {}, stopPropagation() {} },
+    { blocked: findDialogElement(node).props.blocked, onClose: () => { escaped += 1; }, panel: null },
+  );
+  assert.equal(escaped, 0, 'a blocked Escape never closes');
+
+  dismissGate.resolve();
+  await click;
+  await flush();
+  node = flow.render();
+  assert.equal(flow.pending.dismissCalls, 1);
+  assert.equal(flow.closed.length, 1, 'the dismissal completes after the gate resolves');
+  assert.equal(findDialogElement(node).props.blocked, false);
+});
+
 // ------------------------------------------------------- settled reviews -----
 
 test('trigger: returns null when the pending interaction is missing or not a plan review', () => {

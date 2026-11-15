@@ -396,7 +396,7 @@ test('every t() key exists in both dictionaries and no dictionary key is dead', 
 
   const dictionaryKeys = Object.keys(zh);
   assert.deepEqual(Object.keys(en).slice().sort(), dictionaryKeys.slice().sort(), 'zh and en dictionaries must declare the same keys');
-  assert.equal(dictionaryKeys.length, 130, 'dictionary key count changed; update the frozen inventory deliberately');
+  assert.equal(dictionaryKeys.length, 131, 'dictionary key count changed; update the frozen inventory deliberately');
   assert.equal(used.size, dictionaryKeys.length, 'every dictionary key must be used exactly by the known key families');
   assert.deepEqual(dictionaryKeys.filter((key) => !used.has(key)).sort(), [], 'dead dictionary keys');
 

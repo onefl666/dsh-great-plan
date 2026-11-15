@@ -208,6 +208,50 @@ test('the collector skips empty and attachment-only user messages and legacy mes
   assert.deepEqual(actions.collectPlanModeInstructions(entries, start), ['legacy', 'first\nsecond']);
 });
 
+test('a repeated /plan command keeps the earlier user instructions of the same episode', () => {
+  const entries = [
+    event('plan/mode', { active: true }, 1),
+    userMessage('first constraint', 2),
+    event('command/run', { name: 'plan', args: 'another constraint' }, 3),
+    userMessage('another constraint', 4),
+  ];
+  const start = actions.findPlanModeStart(entries);
+  assert.equal(start.kind, 'plan-mode');
+  assert.equal(start.index, 0);
+  assert.deepEqual(
+    actions.collectPlanModeInstructions(entries, start),
+    ['first constraint', 'another constraint'],
+  );
+});
+
+test('/plan off followed by a new /plan command starts a new episode', () => {
+  const entries = [
+    event('plan/mode', { active: true }, 1),
+    userMessage('first episode', 2),
+    event('command/run', { name: 'plan', args: 'off' }, 3),
+    event('command/run', { name: 'plan', args: 'second request' }, 4),
+    userMessage('second episode', 5),
+  ];
+  const start = actions.findPlanModeStart(entries);
+  assert.equal(start.kind, 'plan-command');
+  assert.equal(start.index, 3);
+  assert.equal(start.args, 'second request');
+  assert.deepEqual(actions.collectPlanModeInstructions(entries, start), ['second episode']);
+});
+
+test('a command inside an active episode does not move the start past earlier text', () => {
+  const entries = [
+    event('command/run', { name: 'plan', args: 'first request' }, 1),
+    event('plan/mode', { active: true }, 2),
+    userMessage('earlier request', 3),
+    event('command/run', { name: 'plan', args: 'second request' }, 4),
+  ];
+  const start = actions.findPlanModeStart(entries);
+  assert.equal(start.kind, 'plan-mode');
+  assert.equal(start.index, 1);
+  assert.deepEqual(actions.collectPlanModeInstructions(entries, start), ['earlier request']);
+});
+
 test('readPlanModeInstructions reads the binding and loads older pages until it finds the start', async () => {
   let calls = 0;
   let window = { entries: [], hasMore: true };
@@ -573,6 +617,7 @@ function freshExecutionHarness(options = {}) {
       create: async (args) => {
         log.push('create');
         state.created = args;
+        if (options.createError !== undefined) throw options.createError;
         if (options.createThrows === true) throw new Error('create failed');
         return 'new-session';
       },
@@ -1646,6 +1691,82 @@ test('createFreshExecution reports the creation failure without archiving', asyn
   );
   assert.deepEqual(harness.archived, []);
   assert.equal(harness.log.includes('using'), false);
+});
+
+/** A structured `sessions.create` failure, matching the installed Client service. */
+function sessionCreateError(code, details) {
+  const error = new Error(`session create failed: ${code}`);
+  error.name = 'SessionCreateError';
+  error.rpcError = { code, message: 'session create failed', details };
+  return error;
+}
+
+test('createFreshExecution archives the session published by a failed workspace attach', async () => {
+  const harness = freshExecutionHarness({
+    createError: sessionCreateError('session/workspace-attach-failed', {
+      sessionId: 'orphan-session',
+      workspaceId: 'workspace-1',
+    }),
+  });
+  await assert.rejects(
+    () => actions.createFreshExecution(freshExecutionArgs(harness.ctx)),
+    (error) => {
+      assert.ok(error instanceof actions.ActionError);
+      assert.equal(error.code, 'createSessionFailed');
+      assert.equal(error.params.message, 'session create failed: session/workspace-attach-failed');
+      return true;
+    },
+  );
+  assert.deepEqual(harness.archived, [{ id: 'orphan-session', options: { stopActivity: true } }]);
+  assert.equal(harness.log.filter((entry) => entry === 'archive').length, 1);
+  assert.equal(harness.log.includes('using'), false);
+});
+
+test('createFreshExecution does not archive for other session creation failures', async () => {
+  const harness = freshExecutionHarness({
+    createError: sessionCreateError('session/create-failed', { sessionId: 'not-published' }),
+  });
+  await assert.rejects(
+    () => actions.createFreshExecution(freshExecutionArgs(harness.ctx)),
+    (error) => error.code === 'createSessionFailed',
+  );
+  assert.deepEqual(harness.archived, []);
+
+  const plain = freshExecutionHarness({ createThrows: true });
+  await assert.rejects(
+    () => actions.createFreshExecution(freshExecutionArgs(plain.ctx)),
+    (error) => error.code === 'createSessionFailed',
+  );
+  assert.deepEqual(plain.archived, []);
+});
+
+test('a failed orphan archive only warns and never replaces the creation failure', async () => {
+  const harness = freshExecutionHarness({
+    createError: sessionCreateError('session/workspace-attach-failed', {
+      sessionId: 'orphan-session',
+      workspaceId: 'workspace-1',
+    }),
+    archiveThrows: true,
+  });
+  const warnings = [];
+  const originalWarn = console.warn;
+  console.warn = (...args) => warnings.push(args);
+  try {
+    await assert.rejects(
+      () => actions.createFreshExecution(freshExecutionArgs(harness.ctx)),
+      (error) => {
+        assert.ok(error instanceof actions.ActionError);
+        assert.equal(error.code, 'createSessionFailed');
+        assert.equal(error.params.message, 'session create failed: session/workspace-attach-failed');
+        assert.equal(error.cleanupError, 'archive failed');
+        return true;
+      },
+    );
+  } finally {
+    console.warn = originalWarn;
+  }
+  assert.deepEqual(harness.archived, [{ id: 'orphan-session', options: { stopActivity: true } }]);
+  assert.ok(warnings.some(([first]) => typeof first === 'string' && first.startsWith('great-plan:')));
 });
 
 test('createFreshExecution rejects an empty plan before creating a session', async () => {

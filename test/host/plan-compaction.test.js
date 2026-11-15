@@ -14,12 +14,16 @@ import {
   selectPlanCompactionRange,
 } from '../../lib/host/plan-range.js';
 
-function sessionWith(events) {
+function sessionWith(events, loggedEvents = []) {
   const nodes = [...events.keys()];
-  return {
+  const session = {
     surface: { nodes },
     eventAt: (seq) => events.get(seq),
   };
+  if (loggedEvents.length > 0) {
+    session.snapshotEvents = (fromSeq) => loggedEvents.filter((event) => event.seq >= fromSeq);
+  }
+  return session;
 }
 
 function assistantWithToolCall() {
@@ -342,6 +346,88 @@ test('the plan-review tool name is overridable and defaults to exit_plan_mode', 
 test('plan-range owns the canonical plan-review tool name and plan-compaction re-exports it', () => {
   assert.equal(RANGE_EXIT_PLAN_MODE_TOOL, 'exit_plan_mode');
   assert.equal(EXIT_PLAN_MODE_TOOL, RANGE_EXIT_PLAN_MODE_TOOL);
+});
+
+/** The last surface node of a PTC turn: an assistant message carrying `run_code`. */
+function runCodeAssistant() {
+  return {
+    type: 'assistant/message',
+    data: { message: { content: [{ type: 'tool-call', name: 'run_code' }] } },
+  };
+}
+
+function ptcDispatchStart(seq, name = 'exit_plan_mode', subCallId = 'root:ptc:1') {
+  return {
+    type: 'tool/ptc-dispatch-start',
+    seq,
+    data: { rootCallId: 'root', parentCallId: 'parent', subCallId, name, arguments: {} },
+  };
+}
+
+function ptcDispatch(seq, subCallId = 'root:ptc:1') {
+  return {
+    type: 'tool/ptc-dispatch',
+    seq,
+    data: {
+      rootCallId: 'root',
+      parentCallId: 'parent',
+      subCallId,
+      name: 'exit_plan_mode',
+      arguments: {},
+      isError: false,
+      content: [],
+    },
+  };
+}
+
+test('an unsettled nested exit_plan_mode dispatch inside run_code counts as the pending plan review', () => {
+  const events = new Map([
+    [10, { type: 'system/message' }],
+    [20, { type: 'user/message' }],
+    [40, runCodeAssistant()],
+  ]);
+  const session = sessionWith(events, [ptcDispatchStart(44), ptcDispatchStart(46, 'exit_plan_mode', 'root:ptc:2')]);
+  assert.deepEqual(selectPlanCompactionRange(session, (_session, seq) => seq === 20), { start: 20, end: 20 });
+});
+
+test('a settled nested plan review is not a pending review', () => {
+  const events = new Map([
+    [10, { type: 'system/message' }],
+    [20, { type: 'user/message' }],
+    [40, runCodeAssistant()],
+  ]);
+  const session = sessionWith(events, [ptcDispatchStart(44), ptcDispatch(45)]);
+  assert.deepEqual(selectPlanCompactionRange(session, () => true), { error: 'no-review' });
+});
+
+test('a nested dispatch before the last surface node never counts', () => {
+  const events = new Map([
+    [10, { type: 'system/message' }],
+    [20, { type: 'user/message' }],
+    [40, runCodeAssistant()],
+  ]);
+  const session = sessionWith(events, [ptcDispatchStart(30)]);
+  assert.deepEqual(selectPlanCompactionRange(session, () => true), { error: 'no-review' });
+});
+
+test('a run_code turn whose last surface node is not run_code still reports no-review', () => {
+  const events = new Map([
+    [10, { type: 'system/message' }],
+    [20, { type: 'user/message' }],
+    [40, { type: 'assistant/message', data: { message: { content: [{ type: 'tool-call', name: 'read_file' }] } } }],
+  ]);
+  const session = sessionWith(events, [ptcDispatchStart(44)]);
+  assert.deepEqual(selectPlanCompactionRange(session, () => true), { error: 'no-review' });
+});
+
+test('a session without snapshotEvents degrades to no-review instead of throwing', () => {
+  const events = new Map([
+    [10, { type: 'system/message' }],
+    [20, { type: 'user/message' }],
+    [40, runCodeAssistant()],
+  ]);
+  const session = sessionWith(events);
+  assert.deepEqual(selectPlanCompactionRange(session, () => true), { error: 'no-review' });
 });
 
 test('compact command only accepts exit_plan_mode as the pending plan review', async () => {

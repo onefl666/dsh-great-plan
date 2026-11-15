@@ -37,6 +37,7 @@ const RELEASE_KEYS = [
   'panel.revise',
   'panel.searchModels',
   'panel.noMatches',
+  'panel.modelUnavailable',
   'panel.modelDirectoryLoading',
   'panel.modelDirectoryError',
   'compact.failed',
@@ -158,6 +159,13 @@ test('the 0.4.0 locale additions are present in both dictionaries', () => {
     assert.equal(typeof zh[key], 'string', `zh is missing ${key}`);
     assert.equal(typeof en[key], 'string', `en is missing ${key}`);
   }
+});
+
+test('the model-unavailable marker is a release key in both locales', () => {
+  const { zh, en } = createPlugin().testSurface.dictionaries;
+  assert.ok(RELEASE_KEYS.includes('panel.modelUnavailable'));
+  assert.equal(zh['panel.modelUnavailable'], '当前模型不可用');
+  assert.equal(en['panel.modelUnavailable'], 'Current model is unavailable');
 });
 
 /** Former prompt keys: model-facing text is fixed English in client.actions.js, never localized. */

@@ -166,6 +166,7 @@ function createState(overrides = {}) {
     pending: null,
     error: null,
     routable: true,
+    failures: [],
     ...overrides,
   };
 }
@@ -408,6 +409,83 @@ test('ModelListView keeps the loading, empty, and error catalog paths', () => {
   const stale = renderModelList(createState({ status: 'error', error: 'boom' }));
   assert.equal(radiosOf(stale).length, 4, 'stale groups stay selectable while the error is shown');
   assert.ok(findElements(stale, (child) => child.type === 'mock-error').length >= 1);
+});
+
+test('ModelListView shows provider failures instead of the empty catalog note', () => {
+  const failures = [{ id: 'broken', name: 'Broken provider', message: 'credentials unavailable' }];
+  const node = renderModelList(createState({ groups: [], status: 'ready', failures }));
+
+  assert.equal(textContent(node).includes('panel.modelEmpty'), false, 'the empty note must not hide the failures');
+  assert.ok(textContent(node).includes('Broken provider'));
+  assert.ok(textContent(node).includes('credentials unavailable'));
+  assert.equal(findElements(node, (child) => child.type === 'mock-note').length, 0);
+  assert.equal(findElements(node, (child) => child.type === 'mock-error').length, 1);
+  assert.equal(findElements(node, (child) => child.type === 'mock-button').length, 1);
+});
+
+test('ModelListView keeps usable groups and appends the provider failures', () => {
+  const failures = [{ id: 'broken', name: 'Broken provider', message: 'credentials unavailable' }];
+  const node = renderModelList(createState({ failures }));
+
+  assert.equal(radiosOf(node).length, 4, 'the usable groups stay selectable');
+  assert.ok(textContent(node).includes('Broken provider'));
+  assert.ok(textContent(node).includes('credentials unavailable'));
+  assert.equal(textContent(node).includes('panel.modelEmpty'), false);
+});
+
+test('ModelRows marks an unroutable current model as unavailable', () => {
+  const node = model.ModelRows({
+    state: createState({ routable: false }),
+    t,
+    disabled: false,
+    onOpenModel: () => {},
+    onOpenEffort: () => {},
+    onRetry: () => {},
+  });
+  const rows = findElements(node, (child) => child.type === 'mock-select-row');
+  assert.equal(rows[0].props.value, 'DeepSeek Flash · panel.modelUnavailable');
+  assert.equal(rows[0].props.value.includes('panel.modelUnavailable'), true);
+
+  const routable = model.ModelRows({
+    state: createState({ routable: true }),
+    t,
+    disabled: false,
+    onOpenModel: () => {},
+    onOpenEffort: () => {},
+    onRetry: () => {},
+  });
+  assert.equal(
+    findElements(routable, (child) => child.type === 'mock-select-row')[0].props.value,
+    'DeepSeek Flash',
+  );
+});
+
+test('ModelRows keeps the retained effort when the selected model is unavailable', () => {
+  const state = createState({
+    current: { provider: 'gone', model: 'gone-model' },
+    groups: [],
+    retainedEffort: 'high',
+  });
+  assert.equal(model.effortLabelOf(state, t), 'high');
+
+  const node = model.ModelRows({
+    state,
+    t,
+    disabled: false,
+    onOpenModel: () => {},
+    onOpenEffort: () => {},
+    onRetry: () => {},
+  });
+  const rows = findElements(node, (child) => child.type === 'mock-select-row');
+  assert.equal(rows.length, 2, 'the effort row stays visible for the retained effort');
+  assert.equal(rows[0].props.value, 'gone-model');
+  assert.equal(rows[1].props.value, 'high');
+});
+
+test('ModelListView keeps the plain empty note when there are no provider failures', () => {
+  const node = renderModelList(createState({ groups: [], status: 'ready', failures: [] }));
+  assert.equal(textContent(node), 'panel.modelEmpty');
+  assert.equal(findElements(node, (child) => child.type === 'mock-error').length, 0);
 });
 
 test('ModelListView disables rows while busy or selecting', () => {
